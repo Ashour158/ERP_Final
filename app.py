@@ -2,7 +2,7 @@
 """
 Complete ERP System - Main Application
 Beyond Zoho, SAP, Oracle NetSuite, Microsoft Dynamics, Azure, and Odoo Combined
-Version 2.0 - All 14 Modules with Full Integration
+Version 2.0 - All 14 Modules with Full Integration and Complete CRUD Operations
 """
 
 from flask import Flask, request, jsonify, render_template, send_from_directory
@@ -17,13 +17,34 @@ import uuid
 from functools import wraps
 import logging
 
-# Initialize Flask app
+# Initialize Flask app with config-driven setup
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'your-secret-key-change-in-production'
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///complete_erp.db'
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.config['JWT_SECRET_KEY'] = 'jwt-secret-string-change-in-production'
-app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(hours=24)
+
+# Load configuration based on environment
+env = os.environ.get('FLASK_ENV', 'development')
+if env == 'production':
+    from config import ProductionConfig
+    app.config.from_object(ProductionConfig)
+elif env == 'testing':
+    from config import TestingConfig
+    app.config.from_object(TestingConfig)
+else:
+    from config import DevelopmentConfig
+    app.config.from_object(DevelopmentConfig)
+
+# Override with environment variables for production deployment
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', app.config.get('SECRET_KEY'))
+app.config['JWT_SECRET_KEY'] = os.environ.get('JWT_SECRET_KEY', app.config.get('JWT_SECRET_KEY'))
+
+# Database configuration
+if env == 'development':
+    app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DEV_DATABASE_URL', 'sqlite:///dev_erp.db')
+else:
+    app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', app.config.get('SQLALCHEMY_DATABASE_URI'))
+
+# Upload folder configuration
+app.config['UPLOAD_FOLDER'] = os.environ.get('UPLOAD_FOLDER', 'uploads')
+app.config['MAX_CONTENT_LENGTH'] = int(os.environ.get('MAX_CONTENT_LENGTH', 500 * 1024 * 1024))  # 500MB default
 
 # Initialize extensions
 db = SQLAlchemy(app)
@@ -1141,8 +1162,20 @@ def crm_customers():
         db.session.add(customer)
         db.session.commit()
         
-        # Update CRM KPI
+        # Update CRM KPI for customer creation
         update_user_kpi(current_user.id, 'crm', 'customers_created', 1)
+        
+        # Create vigilance alert for new customer
+        create_vigilance_alert(
+            company_id=company.id,
+            alert_type='business',
+            severity='low',
+            module='crm',
+            title='New Customer Created',
+            description=f"Customer {customer.name} has been added to the system",
+            affected_entity_type='customer',
+            affected_entity_id=customer.id
+        )
         
         return jsonify({'message': 'Customer created successfully', 'id': customer.id}), 201
 
@@ -1200,8 +1233,22 @@ def crm_deals():
         db.session.add(deal)
         db.session.commit()
         
-        # Update CRM KPI
+        # Update CRM KPI for deal creation
         update_user_kpi(current_user.id, 'crm', 'deals_created', 1)
+        
+        # Create vigilance alert for high-value deals
+        if deal.amount > 50000:
+            create_vigilance_alert(
+                company_id=company.id,
+                alert_type='business',
+                severity='medium',
+                module='crm',
+                title='High-Value Deal Created',
+                description=f"Deal {deal.name} worth ${deal.amount:,.2f} has been created",
+                affected_entity_type='deal',
+                affected_entity_id=deal.id,
+                actual_value=float(deal.amount)
+            )
         
         return jsonify({'message': 'Deal created successfully', 'id': deal.id}), 201
 
@@ -1287,8 +1334,22 @@ def crm_quotes():
         db.session.add(quote)
         db.session.commit()
         
-        # Update CRM KPI
+        # Update CRM KPI for quote creation
         update_user_kpi(current_user.id, 'crm', 'quotes_created', 1)
+        
+        # Create vigilance alert for high-value quotes
+        if quote.total_amount > 25000:
+            create_vigilance_alert(
+                company_id=company.id,
+                alert_type='business',
+                severity='low',
+                module='crm',
+                title='High-Value Quote Created',
+                description=f"Quote {quote.quote_number} worth ${quote.total_amount:,.2f} has been created",
+                affected_entity_type='quote',
+                affected_entity_id=quote.id,
+                actual_value=float(quote.total_amount)
+            )
         
         return jsonify({'message': 'Quote created successfully', 'id': quote.id}), 201
 
@@ -1871,8 +1932,22 @@ def supply_chain_purchase_orders():
         db.session.add(purchase_order)
         db.session.commit()
         
-        # Update Supply Chain KPI
+        # Update Supply Chain KPI for purchase order creation
         update_user_kpi(current_user.id, 'supply_chain', 'purchase_orders_created', 1)
+        
+        # Create vigilance alert for high-value purchase orders
+        if purchase_order.total_amount > 10000:
+            create_vigilance_alert(
+                company_id=company.id,
+                alert_type='business',
+                severity='medium',
+                module='supply_chain',
+                title='High-Value Purchase Order',
+                description=f"Purchase Order {purchase_order.po_number} worth ${purchase_order.total_amount:,.2f} has been created",
+                affected_entity_type='purchase_order',
+                affected_entity_id=purchase_order.id,
+                actual_value=float(purchase_order.total_amount)
+            )
         
         return jsonify({'message': 'Purchase order created successfully', 'id': purchase_order.id}), 201
 
@@ -2440,5 +2515,1534 @@ def community_like_post(post_id):
     if not post:
         return jsonify({'error': 'Post not found'}), 404
     
-    # Check if already like
+    # Check if already liked
+    existing_like = CommunityLike.query.filter_by(
+        post_id=post_id,
+        user_id=current_user.id,
+        company_id=company.id
+    ).first()
+    
+    if existing_like:
+        # Unlike
+        db.session.delete(existing_like)
+        post.likes_count = max(0, post.likes_count - 1)
+        action = 'unliked'
+    else:
+        # Like
+        like = CommunityLike(
+            company_id=company.id,
+            post_id=post_id,
+            user_id=current_user.id,
+            reaction_type='like'
+        )
+        db.session.add(like)
+        post.likes_count += 1
+        action = 'liked'
+    
+    db.session.commit()
+    
+    # Update Community KPI
+    update_user_kpi(current_user.id, 'community', 'post_interactions', 1)
+    
+    return jsonify({'message': f'Post {action} successfully', 'likes_count': post.likes_count}), 200
+
+# ============================================================================
+# CRUD UTILITIES AND HELPERS
+# ============================================================================
+
+def roles_required(*roles):
+    """Decorator to enforce role-based access control"""
+    def decorator(f):
+        @wraps(f)
+        def decorated_function(*args, **kwargs):
+            current_user = get_current_user()
+            if not current_user:
+                return jsonify({'error': 'Authentication required'}), 401
+            
+            if current_user.role not in roles:
+                return jsonify({'error': 'Insufficient permissions'}), 403
+                
+            return f(*args, **kwargs)
+        return decorated_function
+    return decorator
+
+def paginate_query(query, page=1, per_page=20):
+    """Utility function for pagination with metadata"""
+    max_per_page = 100
+    per_page = min(per_page, max_per_page)
+    
+    paginated = query.paginate(
+        page=page,
+        per_page=per_page,
+        error_out=False
+    )
+    
+    return {
+        'items': paginated.items,
+        'pagination': {
+            'page': page,
+            'per_page': per_page,
+            'total': paginated.total,
+            'pages': paginated.pages,
+            'has_prev': paginated.has_prev,
+            'has_next': paginated.has_next,
+            'prev_num': paginated.prev_num,
+            'next_num': paginated.next_num
+        }
+    }
+
+def validate_required_fields(data, required_fields):
+    """Validate required fields in request data"""
+    missing_fields = []
+    for field in required_fields:
+        if field not in data or data[field] is None or data[field] == '':
+            missing_fields.append(field)
+    
+    if missing_fields:
+        return {'error': f'Missing required fields: {", ".join(missing_fields)}'}
+    return None
+
+def serialize_datetime(dt):
+    """Serialize datetime to ISO8601 format"""
+    return dt.isoformat() if dt else None
+
+def serialize_decimal(decimal_val):
+    """Serialize Decimal to float"""
+    return float(decimal_val) if decimal_val else 0.0
+
+def parse_search_query(query_string, searchable_fields):
+    """Parse search query for filtering"""
+    if not query_string:
+        return []
+    
+    filters = []
+    for field in searchable_fields:
+        if hasattr(field, 'like'):
+            filters.append(field.like(f'%{query_string}%'))
+    return filters
+
+def apply_filters(query, filters):
+    """Apply filters to SQLAlchemy query"""
+    if filters:
+        # Use db.or_ instead of importing or_
+        query = query.filter(db.or_(*filters))
+    return query
+
+def handle_database_error(e):
+    """Centralized database error handling"""
+    db.session.rollback()
+    logger.error(f"Database error: {str(e)}")
+    
+    error_message = str(e.orig) if hasattr(e, 'orig') else str(e)
+    
+    if 'unique constraint' in error_message.lower() or 'duplicate' in error_message.lower():
+        return jsonify({'error': 'A record with this information already exists'}), 409
+    elif 'foreign key constraint' in error_message.lower():
+        return jsonify({'error': 'Referenced record does not exist'}), 400
+    elif 'not null constraint' in error_message.lower():
+        return jsonify({'error': 'Required field is missing'}), 400
+    else:
+        return jsonify({'error': 'Database operation failed'}), 500
+
+def create_safe_filename(filename):
+    """Create safe filename for uploads"""
+    import re
+    # Remove any dangerous characters and limit length
+    filename = re.sub(r'[^\w\-_\.]', '', filename)
+    return filename[:100]  # Limit length
+
+def allowed_file(filename, allowed_extensions=None):
+    """Check if file extension is allowed"""
+    if allowed_extensions is None:
+        allowed_extensions = {'txt', 'pdf', 'png', 'jpg', 'jpeg', 'gif', 'doc', 'docx', 'xls', 'xlsx'}
+    
+    return '.' in filename and \
+           filename.rsplit('.', 1)[1].lower() in allowed_extensions
+
+# ============================================================================
+# COMPLETE CRUD ENDPOINTS FOR ALL MODULES
+# ============================================================================
+
+# Company Management (Admin only)
+@app.route('/api/companies', methods=['GET', 'POST'])
+@jwt_required()
+def companies():
+    """Company management - Admin only"""
+    current_user = get_current_user()
+    
+    if request.method == 'GET':
+        # Only admins can list all companies
+        if current_user.role != 'admin':
+            # Regular users can only see their own company
+            companies = [current_user.company]
+        else:
+            companies = Company.query.all()
+        
+        return jsonify([{
+            'id': c.id,
+            'name': c.name,
+            'code': c.code,
+            'domain': c.domain,
+            'logo_url': c.logo_url,
+            'address': c.address,
+            'phone': c.phone,
+            'email': c.email,
+            'is_active': c.is_active,
+            'created_at': serialize_datetime(c.created_at)
+        } for c in companies])
+    
+    elif request.method == 'POST':
+        # Only admins can create companies
+        if current_user.role != 'admin':
+            return jsonify({'error': 'Admin privileges required'}), 403
+        
+        try:
+            data = request.get_json()
+            
+            # Validate required fields
+            validation_error = validate_required_fields(data, ['name', 'code'])
+            if validation_error:
+                return jsonify(validation_error), 400
+            
+            company = Company(
+                name=data['name'],
+                code=data['code'],
+                domain=data.get('domain'),
+                logo_url=data.get('logo_url'),
+                address=data.get('address'),
+                phone=data.get('phone'),
+                email=data.get('email')
+            )
+            
+            db.session.add(company)
+            db.session.commit()
+            
+            return jsonify({'message': 'Company created successfully', 'id': company.id}), 201
+            
+        except Exception as e:
+            return handle_database_error(e)
+
+@app.route('/api/companies/<int:company_id>', methods=['GET', 'PUT', 'DELETE'])
+@jwt_required()
+@roles_required('admin')
+def company_detail(company_id):
+    """Company detail operations - Admin only"""
+    company = Company.query.get(company_id)
+    if not company:
+        return jsonify({'error': 'Company not found'}), 404
+    
+    if request.method == 'GET':
+        return jsonify({
+            'id': company.id,
+            'name': company.name,
+            'code': company.code,
+            'domain': company.domain,
+            'logo_url': company.logo_url,
+            'address': company.address,
+            'phone': company.phone,
+            'email': company.email,
+            'is_active': company.is_active,
+            'created_at': serialize_datetime(company.created_at),
+            'user_count': len(company.users),
+            'customer_count': len(company.customers),
+            'vendor_count': len(company.vendors)
+        })
+    
+    elif request.method == 'PUT':
+        try:
+            data = request.get_json()
+            
+            company.name = data.get('name', company.name)
+            company.code = data.get('code', company.code)
+            company.domain = data.get('domain', company.domain)
+            company.logo_url = data.get('logo_url', company.logo_url)
+            company.address = data.get('address', company.address)
+            company.phone = data.get('phone', company.phone)
+            company.email = data.get('email', company.email)
+            company.is_active = data.get('is_active', company.is_active)
+            
+            db.session.commit()
+            
+            return jsonify({'message': 'Company updated successfully'})
+            
+        except Exception as e:
+            return handle_database_error(e)
+    
+    elif request.method == 'DELETE':
+        try:
+            # Soft delete by deactivating
+            company.is_active = False
+            db.session.commit()
+            
+            return jsonify({'message': 'Company deactivated successfully'})
+            
+        except Exception as e:
+            return handle_database_error(e)
+
+# User Management
+@app.route('/api/users', methods=['GET', 'POST'])
+@jwt_required()
+@company_required
+def users():
+    """User management with company isolation"""
+    company = get_current_company()
+    current_user = get_current_user()
+    
+    if request.method == 'GET':
+        # Parse pagination and search parameters
+        page = request.args.get('page', 1, type=int)
+        per_page = request.args.get('per_page', 20, type=int)
+        search = request.args.get('q', '')
+        
+        # Build query with company filter
+        query = User.query.filter_by(company_id=company.id)
+        
+        # Apply search filters
+        if search:
+            searchable_fields = [User.username, User.email, User.first_name, User.last_name]
+            filters = parse_search_query(search, searchable_fields)
+            query = apply_filters(query, filters)
+        
+        # Paginate results
+        result = paginate_query(query, page, per_page)
+        
+        return jsonify({
+            'users': [{
+                'id': u.id,
+                'username': u.username,
+                'email': u.email,
+                'first_name': u.first_name,
+                'last_name': u.last_name,
+                'profile_picture': u.profile_picture,
+                'phone': u.phone,
+                'department': u.department,
+                'position': u.position,
+                'role': u.role,
+                'is_active': u.is_active,
+                'last_login': serialize_datetime(u.last_login),
+                'created_at': serialize_datetime(u.created_at)
+            } for u in result['items']],
+            'pagination': result['pagination']
+        })
+    
+    elif request.method == 'POST':
+        # Only admins and managers can create users
+        if current_user.role not in ['admin', 'manager']:
+            return jsonify({'error': 'Insufficient permissions'}), 403
+        
+        try:
+            data = request.get_json()
+            
+            # Validate required fields
+            validation_error = validate_required_fields(data, 
+                ['username', 'email', 'password', 'first_name', 'last_name'])
+            if validation_error:
+                return jsonify(validation_error), 400
+            
+            # Check if user already exists
+            if User.query.filter_by(username=data['username']).first():
+                return jsonify({'error': 'Username already exists'}), 409
+            
+            if User.query.filter_by(email=data['email']).first():
+                return jsonify({'error': 'Email already exists'}), 409
+            
+            user = User(
+                company_id=company.id,  # Force company isolation
+                username=data['username'],
+                email=data['email'],
+                password_hash=generate_password_hash(data['password']),
+                first_name=data['first_name'],
+                last_name=data['last_name'],
+                profile_picture=data.get('profile_picture'),
+                phone=data.get('phone'),
+                department=data.get('department'),
+                position=data.get('position'),
+                manager_id=data.get('manager_id'),
+                birth_date=datetime.strptime(data['birth_date'], '%Y-%m-%d').date() if data.get('birth_date') else None,
+                marital_status=data.get('marital_status'),
+                emergency_contact=data.get('emergency_contact'),
+                skills=json.dumps(data.get('skills', [])),
+                certifications=json.dumps(data.get('certifications', [])),
+                role=data.get('role', 'user')
+            )
+            
+            db.session.add(user)
+            db.session.commit()
+            
+            # Update HR KPI
+            update_user_kpi(current_user.id, 'hr', 'users_created', 1)
+            
+            return jsonify({'message': 'User created successfully', 'id': user.id}), 201
+            
+        except Exception as e:
+            return handle_database_error(e)
+
+@app.route('/api/users/<int:user_id>', methods=['GET', 'PUT', 'DELETE'])
+@jwt_required()
+@company_required
+def user_detail(user_id):
+    """User detail operations with company isolation"""
+    company = get_current_company()
+    current_user = get_current_user()
+    
+    user = User.query.filter_by(id=user_id, company_id=company.id).first()
+    if not user:
+        return jsonify({'error': 'User not found'}), 404
+    
+    if request.method == 'GET':
+        return jsonify({
+            'id': user.id,
+            'username': user.username,
+            'email': user.email,
+            'first_name': user.first_name,
+            'last_name': user.last_name,
+            'profile_picture': user.profile_picture,
+            'phone': user.phone,
+            'department': user.department,
+            'position': user.position,
+            'manager': {
+                'id': user.manager.id,
+                'name': f"{user.manager.first_name} {user.manager.last_name}"
+            } if user.manager else None,
+            'birth_date': user.birth_date.isoformat() if user.birth_date else None,
+            'marital_status': user.marital_status,
+            'emergency_contact': user.emergency_contact,
+            'skills': json.loads(user.skills) if user.skills else [],
+            'certifications': json.loads(user.certifications) if user.certifications else [],
+            'role': user.role,
+            'is_active': user.is_active,
+            'last_login': serialize_datetime(user.last_login),
+            'current_location': {
+                'lat': user.current_location_lat,
+                'lng': user.current_location_lng,
+                'address': user.current_location_address
+            } if user.current_location_lat else None,
+            'created_at': serialize_datetime(user.created_at),
+            'updated_at': serialize_datetime(user.updated_at)
+        })
+    
+    elif request.method == 'PUT':
+        # Users can update their own profile, admins/managers can update others
+        if user.id != current_user.id and current_user.role not in ['admin', 'manager']:
+            return jsonify({'error': 'Insufficient permissions'}), 403
+        
+        try:
+            data = request.get_json()
+            
+            # Update allowed fields
+            user.first_name = data.get('first_name', user.first_name)
+            user.last_name = data.get('last_name', user.last_name)
+            user.profile_picture = data.get('profile_picture', user.profile_picture)
+            user.phone = data.get('phone', user.phone)
+            
+            # Only admins can change role and department
+            if current_user.role == 'admin':
+                user.department = data.get('department', user.department)
+                user.position = data.get('position', user.position)
+                user.role = data.get('role', user.role)
+                user.is_active = data.get('is_active', user.is_active)
+                user.manager_id = data.get('manager_id', user.manager_id)
+            
+            # Personal info updates
+            if data.get('birth_date'):
+                user.birth_date = datetime.strptime(data['birth_date'], '%Y-%m-%d').date()
+            user.marital_status = data.get('marital_status', user.marital_status)
+            user.emergency_contact = data.get('emergency_contact', user.emergency_contact)
+            
+            if data.get('skills'):
+                user.skills = json.dumps(data['skills'])
+            if data.get('certifications'):
+                user.certifications = json.dumps(data['certifications'])
+            
+            user.updated_at = datetime.utcnow()
+            db.session.commit()
+            
+            return jsonify({'message': 'User updated successfully'})
+            
+        except Exception as e:
+            return handle_database_error(e)
+    
+    elif request.method == 'DELETE':
+        # Only admins can delete users
+        if current_user.role != 'admin':
+            return jsonify({'error': 'Admin privileges required'}), 403
+        
+        try:
+            # Soft delete by deactivating
+            user.is_active = False
+            db.session.commit()
+            
+            return jsonify({'message': 'User deactivated successfully'})
+            
+        except Exception as e:
+            return handle_database_error(e)
+
+# Products Management
+@app.route('/api/products', methods=['GET', 'POST'])
+@jwt_required()
+@company_required
+def products():
+    """Product catalog management with company isolation"""
+    company = get_current_company()
+    current_user = get_current_user()
+    
+    if request.method == 'GET':
+        # Parse pagination and search parameters
+        page = request.args.get('page', 1, type=int)
+        per_page = request.args.get('per_page', 20, type=int)
+        search = request.args.get('q', '')
+        category = request.args.get('category', '')
+        
+        # Build query with company filter
+        query = Product.query.filter_by(company_id=company.id, is_active=True)
+        
+        # Apply category filter
+        if category:
+            query = query.filter_by(category=category)
+        
+        # Apply search filters
+        if search:
+            searchable_fields = [Product.name, Product.code, Product.description]
+            filters = parse_search_query(search, searchable_fields)
+            query = apply_filters(query, filters)
+        
+        # Paginate results
+        result = paginate_query(query, page, per_page)
+        
+        return jsonify({
+            'products': [{
+                'id': p.id,
+                'name': p.name,
+                'code': p.code,
+                'description': p.description,
+                'category': p.category,
+                'unit_of_measure': p.unit_of_measure,
+                'cost_price': serialize_decimal(p.cost_price),
+                'selling_price': serialize_decimal(p.selling_price),
+                'weight': p.weight,
+                'dimensions': p.dimensions,
+                'barcode': p.barcode,
+                'qr_code': p.qr_code,
+                'track_by_batch': p.track_by_batch,
+                'track_by_lot': p.track_by_lot,
+                'requires_temperature_control': p.requires_temperature_control,
+                'min_temperature': p.min_temperature,
+                'max_temperature': p.max_temperature,
+                'shelf_life_days': p.shelf_life_days,
+                'reorder_level': p.reorder_level,
+                'max_stock_level': p.max_stock_level,
+                'created_at': serialize_datetime(p.created_at),
+                'updated_at': serialize_datetime(p.updated_at)
+            } for p in result['items']],
+            'pagination': result['pagination']
+        })
+    
+    elif request.method == 'POST':
+        try:
+            data = request.get_json()
+            
+            # Validate required fields
+            validation_error = validate_required_fields(data, ['name', 'code'])
+            if validation_error:
+                return jsonify(validation_error), 400
+            
+            product = Product(
+                company_id=company.id,
+                name=data['name'],
+                code=data['code'],
+                description=data.get('description'),
+                category=data.get('category'),
+                unit_of_measure=data.get('unit_of_measure'),
+                cost_price=data.get('cost_price'),
+                selling_price=data.get('selling_price'),
+                weight=data.get('weight'),
+                dimensions=data.get('dimensions'),
+                barcode=data.get('barcode'),
+                qr_code=data.get('qr_code'),
+                track_by_batch=data.get('track_by_batch', False),
+                track_by_lot=data.get('track_by_lot', False),
+                requires_temperature_control=data.get('requires_temperature_control', False),
+                min_temperature=data.get('min_temperature'),
+                max_temperature=data.get('max_temperature'),
+                shelf_life_days=data.get('shelf_life_days'),
+                reorder_level=data.get('reorder_level', 0.0),
+                max_stock_level=data.get('max_stock_level')
+            )
+            
+            db.session.add(product)
+            db.session.commit()
+            
+            # Update product management KPI
+            update_user_kpi(current_user.id, 'product_management', 'products_created', 1)
+            
+            return jsonify({'message': 'Product created successfully', 'id': product.id}), 201
+            
+        except Exception as e:
+            return handle_database_error(e)
+
+@app.route('/api/products/<int:product_id>', methods=['GET', 'PUT', 'DELETE'])
+@jwt_required()
+@company_required
+def product_detail(product_id):
+    """Product detail operations with company isolation"""
+    company = get_current_company()
+    current_user = get_current_user()
+    
+    product = Product.query.filter_by(id=product_id, company_id=company.id).first()
+    if not product:
+        return jsonify({'error': 'Product not found'}), 404
+    
+    if request.method == 'GET':
+        # Get inventory information
+        inventory_items = InventoryItem.query.filter_by(product_id=product.id, company_id=company.id).all()
+        total_quantity = sum(item.quantity for item in inventory_items)
+        available_quantity = sum(item.quantity - item.reserved_quantity for item in inventory_items)
+        
+        return jsonify({
+            'id': product.id,
+            'name': product.name,
+            'code': product.code,
+            'description': product.description,
+            'category': product.category,
+            'unit_of_measure': product.unit_of_measure,
+            'cost_price': serialize_decimal(product.cost_price),
+            'selling_price': serialize_decimal(product.selling_price),
+            'weight': product.weight,
+            'dimensions': product.dimensions,
+            'barcode': product.barcode,
+            'qr_code': product.qr_code,
+            'track_by_batch': product.track_by_batch,
+            'track_by_lot': product.track_by_lot,
+            'requires_temperature_control': product.requires_temperature_control,
+            'min_temperature': product.min_temperature,
+            'max_temperature': product.max_temperature,
+            'shelf_life_days': product.shelf_life_days,
+            'reorder_level': product.reorder_level,
+            'max_stock_level': product.max_stock_level,
+            'is_active': product.is_active,
+            'inventory': {
+                'total_quantity': total_quantity,
+                'available_quantity': available_quantity,
+                'reserved_quantity': total_quantity - available_quantity,
+                'below_reorder_level': available_quantity < product.reorder_level
+            },
+            'created_at': serialize_datetime(product.created_at),
+            'updated_at': serialize_datetime(product.updated_at)
+        })
+    
+    elif request.method == 'PUT':
+        try:
+            data = request.get_json()
+            
+            # Update product fields
+            product.name = data.get('name', product.name)
+            product.code = data.get('code', product.code)
+            product.description = data.get('description', product.description)
+            product.category = data.get('category', product.category)
+            product.unit_of_measure = data.get('unit_of_measure', product.unit_of_measure)
+            product.cost_price = data.get('cost_price', product.cost_price)
+            product.selling_price = data.get('selling_price', product.selling_price)
+            product.weight = data.get('weight', product.weight)
+            product.dimensions = data.get('dimensions', product.dimensions)
+            product.barcode = data.get('barcode', product.barcode)
+            product.qr_code = data.get('qr_code', product.qr_code)
+            product.track_by_batch = data.get('track_by_batch', product.track_by_batch)
+            product.track_by_lot = data.get('track_by_lot', product.track_by_lot)
+            product.requires_temperature_control = data.get('requires_temperature_control', product.requires_temperature_control)
+            product.min_temperature = data.get('min_temperature', product.min_temperature)
+            product.max_temperature = data.get('max_temperature', product.max_temperature)
+            product.shelf_life_days = data.get('shelf_life_days', product.shelf_life_days)
+            product.reorder_level = data.get('reorder_level', product.reorder_level)
+            product.max_stock_level = data.get('max_stock_level', product.max_stock_level)
+            product.is_active = data.get('is_active', product.is_active)
+            product.updated_at = datetime.utcnow()
+            
+            db.session.commit()
+            
+            return jsonify({'message': 'Product updated successfully'})
+            
+        except Exception as e:
+            return handle_database_error(e)
+    
+    elif request.method == 'DELETE':
+        try:
+            # Soft delete by deactivating
+            product.is_active = False
+            product.updated_at = datetime.utcnow()
+            db.session.commit()
+            
+            return jsonify({'message': 'Product deactivated successfully'})
+            
+        except Exception as e:
+            return handle_database_error(e)
+
+# Contract Management
+@app.route('/api/contracts', methods=['GET', 'POST'])
+@jwt_required()
+@company_required
+def contracts():
+    """Contract lifecycle management with company isolation"""
+    company = get_current_company()
+    current_user = get_current_user()
+    
+    if request.method == 'GET':
+        # Parse pagination and search parameters
+        page = request.args.get('page', 1, type=int)
+        per_page = request.args.get('per_page', 20, type=int)
+        search = request.args.get('q', '')
+        contract_type = request.args.get('type', '')
+        status = request.args.get('status', '')
+        
+        # Build query with company filter
+        query = Contract.query.filter_by(company_id=company.id)
+        
+        # Apply filters
+        if contract_type:
+            query = query.filter_by(contract_type=contract_type)
+        if status:
+            query = query.filter_by(status=status)
+        
+        # Apply search filters
+        if search:
+            searchable_fields = [Contract.title, Contract.contract_number, Contract.description]
+            filters = parse_search_query(search, searchable_fields)
+            query = apply_filters(query, filters)
+        
+        # Paginate results
+        result = paginate_query(query, page, per_page)
+        
+        return jsonify({
+            'contracts': [{
+                'id': c.id,
+                'contract_number': c.contract_number,
+                'title': c.title,
+                'description': c.description,
+                'contract_type': c.contract_type,
+                'status': c.status,
+                'start_date': c.start_date.isoformat() if c.start_date else None,
+                'end_date': c.end_date.isoformat() if c.end_date else None,
+                'auto_renewal': c.auto_renewal,
+                'renewal_period': c.renewal_period,
+                'contract_value': serialize_decimal(c.contract_value),
+                'currency': c.currency,
+                'payment_terms': c.payment_terms,
+                'risk_score': c.risk_score,
+                'compliance_status': c.compliance_status,
+                'vendor': {
+                    'id': c.vendor.id,
+                    'name': c.vendor.name
+                } if c.vendor else None,
+                'customer': {
+                    'id': c.customer.id,
+                    'name': c.customer.name
+                } if c.customer else None,
+                'creator': {
+                    'id': c.creator.id,
+                    'name': f"{c.creator.first_name} {c.creator.last_name}"
+                },
+                'created_at': serialize_datetime(c.created_at),
+                'updated_at': serialize_datetime(c.updated_at)
+            } for c in result['items']],
+            'pagination': result['pagination']
+        })
+    
+    elif request.method == 'POST':
+        try:
+            data = request.get_json()
+            
+            # Validate required fields
+            validation_error = validate_required_fields(data, ['title', 'contract_type'])
+            if validation_error:
+                return jsonify(validation_error), 400
+            
+            contract = Contract(
+                company_id=company.id,
+                vendor_id=data.get('vendor_id'),
+                customer_id=data.get('customer_id'),
+                contract_number=f"CTR-{datetime.utcnow().strftime('%Y%m%d%H%M%S')}",
+                title=data['title'],
+                description=data.get('description'),
+                contract_type=data['contract_type'],
+                start_date=datetime.strptime(data['start_date'], '%Y-%m-%d').date() if data.get('start_date') else None,
+                end_date=datetime.strptime(data['end_date'], '%Y-%m-%d').date() if data.get('end_date') else None,
+                auto_renewal=data.get('auto_renewal', False),
+                renewal_period=data.get('renewal_period'),
+                contract_value=data.get('contract_value'),
+                currency=data.get('currency', 'USD'),
+                payment_terms=data.get('payment_terms'),
+                document_url=data.get('document_url'),
+                created_by=current_user.id
+            )
+            
+            db.session.add(contract)
+            db.session.commit()
+            
+            # Update contract management KPI
+            update_user_kpi(current_user.id, 'contract_management', 'contracts_created', 1)
+            
+            return jsonify({'message': 'Contract created successfully', 'id': contract.id}), 201
+            
+        except Exception as e:
+            return handle_database_error(e)
+
+@app.route('/api/contracts/<int:contract_id>', methods=['GET', 'PUT', 'DELETE'])
+@jwt_required()
+@company_required
+def contract_detail(contract_id):
+    """Contract detail operations with company isolation"""
+    company = get_current_company()
+    current_user = get_current_user()
+    
+    contract = Contract.query.filter_by(id=contract_id, company_id=company.id).first()
+    if not contract:
+        return jsonify({'error': 'Contract not found'}), 404
+    
+    if request.method == 'GET':
+        return jsonify({
+            'id': contract.id,
+            'contract_number': contract.contract_number,
+            'title': contract.title,
+            'description': contract.description,
+            'contract_type': contract.contract_type,
+            'status': contract.status,
+            'start_date': contract.start_date.isoformat() if contract.start_date else None,
+            'end_date': contract.end_date.isoformat() if contract.end_date else None,
+            'auto_renewal': contract.auto_renewal,
+            'renewal_period': contract.renewal_period,
+            'contract_value': serialize_decimal(contract.contract_value),
+            'currency': contract.currency,
+            'payment_terms': contract.payment_terms,
+            'risk_score': contract.risk_score,
+            'compliance_status': contract.compliance_status,
+            'document_url': contract.document_url,
+            'digital_signature_url': contract.digital_signature_url,
+            'vendor': {
+                'id': contract.vendor.id,
+                'name': contract.vendor.name,
+                'email': contract.vendor.email,
+                'phone': contract.vendor.phone
+            } if contract.vendor else None,
+            'customer': {
+                'id': contract.customer.id,
+                'name': contract.customer.name,
+                'email': contract.customer.email,
+                'phone': contract.customer.phone
+            } if contract.customer else None,
+            'creator': {
+                'id': contract.creator.id,
+                'name': f"{contract.creator.first_name} {contract.creator.last_name}",
+                'email': contract.creator.email
+            },
+            'approver': {
+                'id': contract.approver.id,
+                'name': f"{contract.approver.first_name} {contract.approver.last_name}"
+            } if contract.approver else None,
+            'created_at': serialize_datetime(contract.created_at),
+            'updated_at': serialize_datetime(contract.updated_at)
+        })
+    
+    elif request.method == 'PUT':
+        try:
+            data = request.get_json()
+            
+            # Update contract fields
+            contract.title = data.get('title', contract.title)
+            contract.description = data.get('description', contract.description)
+            contract.contract_type = data.get('contract_type', contract.contract_type)
+            contract.status = data.get('status', contract.status)
+            
+            if data.get('start_date'):
+                contract.start_date = datetime.strptime(data['start_date'], '%Y-%m-%d').date()
+            if data.get('end_date'):
+                contract.end_date = datetime.strptime(data['end_date'], '%Y-%m-%d').date()
+                
+            contract.auto_renewal = data.get('auto_renewal', contract.auto_renewal)
+            contract.renewal_period = data.get('renewal_period', contract.renewal_period)
+            contract.contract_value = data.get('contract_value', contract.contract_value)
+            contract.currency = data.get('currency', contract.currency)
+            contract.payment_terms = data.get('payment_terms', contract.payment_terms)
+            contract.risk_score = data.get('risk_score', contract.risk_score)
+            contract.compliance_status = data.get('compliance_status', contract.compliance_status)
+            contract.document_url = data.get('document_url', contract.document_url)
+            contract.digital_signature_url = data.get('digital_signature_url', contract.digital_signature_url)
+            
+            # Only certain roles can approve contracts
+            if data.get('approved_by') and current_user.role in ['admin', 'manager']:
+                contract.approved_by = data['approved_by']
+            
+            contract.updated_at = datetime.utcnow()
+            db.session.commit()
+            
+            # Create vigilance alert for high-risk contracts
+            if contract.risk_score and contract.risk_score > 0.7:
+                create_vigilance_alert(
+                    company_id=company.id,
+                    alert_type='business',
+                    severity='high',
+                    module='contract_management',
+                    title='High-Risk Contract',
+                    description=f"Contract {contract.contract_number} has a high risk score of {contract.risk_score}",
+                    affected_entity_type='contract',
+                    affected_entity_id=contract.id,
+                    threshold_value=0.7,
+                    actual_value=contract.risk_score
+                )
+            
+            return jsonify({'message': 'Contract updated successfully'})
+            
+        except Exception as e:
+            return handle_database_error(e)
+    
+    elif request.method == 'DELETE':
+        try:
+            # Only admins can delete contracts
+            if current_user.role != 'admin':
+                return jsonify({'error': 'Admin privileges required'}), 403
+            
+            # Change status to cancelled instead of hard delete
+            contract.status = 'cancelled'
+            contract.updated_at = datetime.utcnow()
+            db.session.commit()
+            
+            return jsonify({'message': 'Contract cancelled successfully'})
+            
+        except Exception as e:
+            return handle_database_error(e)
+
+# Business Analytics Management
+@app.route('/api/business-analytics', methods=['GET', 'POST'])
+@jwt_required()
+@company_required
+def business_analytics():
+    """Business analysis and reporting with company isolation"""
+    company = get_current_company()
+    current_user = get_current_user()
+    
+    if request.method == 'GET':
+        # Parse pagination parameters
+        page = request.args.get('page', 1, type=int)
+        per_page = request.args.get('per_page', 20, type=int)
+        report_type = request.args.get('type', '')
+        
+        # Build query with company filter
+        query = BusinessAnalytics.query.filter_by(company_id=company.id)
+        
+        if report_type:
+            query = query.filter_by(report_type=report_type)
+        
+        # Paginate results
+        result = paginate_query(query, page, per_page)
+        
+        return jsonify({
+            'reports': [{
+                'id': r.id,
+                'report_name': r.report_name,
+                'report_type': r.report_type,
+                'data_sources': json.loads(r.data_sources) if r.data_sources else [],
+                'metrics': json.loads(r.metrics) if r.metrics else [],
+                'filters': json.loads(r.filters) if r.filters else {},
+                'date_range_start': r.date_range_start.isoformat() if r.date_range_start else None,
+                'date_range_end': r.date_range_end.isoformat() if r.date_range_end else None,
+                'insights': r.insights,
+                'recommendations': r.recommendations,
+                'is_automated': r.is_automated,
+                'schedule_frequency': r.schedule_frequency,
+                'last_run_at': serialize_datetime(r.last_run_at),
+                'next_run_at': serialize_datetime(r.next_run_at),
+                'creator': {
+                    'id': r.creator.id,
+                    'name': f"{r.creator.first_name} {r.creator.last_name}"
+                },
+                'created_at': serialize_datetime(r.created_at),
+                'updated_at': serialize_datetime(r.updated_at)
+            } for r in result['items']],
+            'pagination': result['pagination']
+        })
+    
+    elif request.method == 'POST':
+        try:
+            data = request.get_json()
+            
+            # Validate required fields
+            validation_error = validate_required_fields(data, ['report_name', 'report_type'])
+            if validation_error:
+                return jsonify(validation_error), 400
+            
+            analytics = BusinessAnalytics(
+                company_id=company.id,
+                report_name=data['report_name'],
+                report_type=data['report_type'],
+                data_sources=json.dumps(data.get('data_sources', [])),
+                metrics=json.dumps(data.get('metrics', [])),
+                filters=json.dumps(data.get('filters', {})),
+                date_range_start=datetime.strptime(data['date_range_start'], '%Y-%m-%d').date() if data.get('date_range_start') else None,
+                date_range_end=datetime.strptime(data['date_range_end'], '%Y-%m-%d').date() if data.get('date_range_end') else None,
+                visualization_config=json.dumps(data.get('visualization_config', {})),
+                is_automated=data.get('is_automated', False),
+                schedule_frequency=data.get('schedule_frequency'),
+                created_by=current_user.id
+            )
+            
+            db.session.add(analytics)
+            db.session.commit()
+            
+            # Update analytics KPI
+            update_user_kpi(current_user.id, 'business_analytics', 'reports_created', 1)
+            
+            return jsonify({'message': 'Business analytics report created successfully', 'id': analytics.id}), 201
+            
+        except Exception as e:
+            return handle_database_error(e)
+
+# Compliance Audit Management
+@app.route('/api/compliance-audits', methods=['GET', 'POST'])
+@jwt_required()
+@company_required
+def compliance_audits():
+    """Compliance and quality management with company isolation"""
+    company = get_current_company()
+    current_user = get_current_user()
+    
+    if request.method == 'GET':
+        # Parse pagination parameters
+        page = request.args.get('page', 1, type=int)
+        per_page = request.args.get('per_page', 20, type=int)
+        audit_type = request.args.get('type', '')
+        status = request.args.get('status', '')
+        
+        # Build query with company filter
+        query = ComplianceAudit.query.filter_by(company_id=company.id)
+        
+        if audit_type:
+            query = query.filter_by(audit_type=audit_type)
+        if status:
+            query = query.filter_by(status=status)
+        
+        # Paginate results
+        result = paginate_query(query, page, per_page)
+        
+        return jsonify({
+            'audits': [{
+                'id': a.id,
+                'audit_type': a.audit_type,
+                'title': a.title,
+                'description': a.description,
+                'standard': a.standard,
+                'scope': a.scope,
+                'auditee_department': a.auditee_department,
+                'scheduled_date': a.scheduled_date.isoformat() if a.scheduled_date else None,
+                'actual_date': a.actual_date.isoformat() if a.actual_date else None,
+                'status': a.status,
+                'findings': json.loads(a.findings) if a.findings else [],
+                'non_conformances': json.loads(a.non_conformances) if a.non_conformances else [],
+                'corrective_actions': json.loads(a.corrective_actions) if a.corrective_actions else [],
+                'preventive_actions': json.loads(a.preventive_actions) if a.preventive_actions else [],
+                'overall_rating': a.overall_rating,
+                'follow_up_required': a.follow_up_required,
+                'follow_up_date': a.follow_up_date.isoformat() if a.follow_up_date else None,
+                'auditor': {
+                    'id': a.auditor.id,
+                    'name': f"{a.auditor.first_name} {a.auditor.last_name}"
+                },
+                'created_at': serialize_datetime(a.created_at),
+                'updated_at': serialize_datetime(a.updated_at)
+            } for a in result['items']],
+            'pagination': result['pagination']
+        })
+    
+    elif request.method == 'POST':
+        try:
+            data = request.get_json()
+            
+            # Validate required fields
+            validation_error = validate_required_fields(data, ['audit_type', 'title', 'auditor_id'])
+            if validation_error:
+                return jsonify(validation_error), 400
+            
+            audit = ComplianceAudit(
+                company_id=company.id,
+                audit_type=data['audit_type'],
+                title=data['title'],
+                description=data.get('description'),
+                standard=data.get('standard'),
+                scope=data.get('scope'),
+                auditor_id=data['auditor_id'],
+                auditee_department=data.get('auditee_department'),
+                scheduled_date=datetime.strptime(data['scheduled_date'], '%Y-%m-%d').date() if data.get('scheduled_date') else None
+            )
+            
+            db.session.add(audit)
+            db.session.commit()
+            
+            # Update compliance KPI
+            update_user_kpi(current_user.id, 'compliance', 'audits_scheduled', 1)
+            
+            return jsonify({'message': 'Compliance audit created successfully', 'id': audit.id}), 201
+            
+        except Exception as e:
+            return handle_database_error(e)
+
+# Document Signature Management
+@app.route('/api/document-signatures', methods=['GET', 'POST'])
+@jwt_required()
+@company_required
+def document_signatures():
+    """Digital signature workflow with company isolation"""
+    company = get_current_company()
+    current_user = get_current_user()
+    
+    if request.method == 'GET':
+        # Parse pagination parameters
+        page = request.args.get('page', 1, type=int)
+        per_page = request.args.get('per_page', 20, type=int)
+        document_type = request.args.get('type', '')
+        status = request.args.get('status', '')
+        
+        # Build query with company filter
+        query = DocumentSignature.query.filter_by(company_id=company.id)
+        
+        if document_type:
+            query = query.filter_by(document_type=document_type)
+        if status:
+            query = query.filter_by(signature_status=status)
+        
+        # Paginate results
+        result = paginate_query(query, page, per_page)
+        
+        return jsonify({
+            'documents': [{
+                'id': d.id,
+                'document_name': d.document_name,
+                'document_type': d.document_type,
+                'document_url': d.document_url,
+                'original_document_url': d.original_document_url,
+                'module_source': d.module_source,
+                'source_record_id': d.source_record_id,
+                'signers': json.loads(d.signers) if d.signers else [],
+                'signature_status': d.signature_status,
+                'signing_order': json.loads(d.signing_order) if d.signing_order else [],
+                'current_signer_index': d.current_signer_index,
+                'expiry_date': serialize_datetime(d.expiry_date),
+                'completed_at': serialize_datetime(d.completed_at),
+                'certificate_url': d.certificate_url,
+                'ocr_extracted_data': json.loads(d.ocr_extracted_data) if d.ocr_extracted_data else {},
+                'auto_archive_code': d.auto_archive_code,
+                'archive_location': d.archive_location,
+                'creator': {
+                    'id': d.creator.id,
+                    'name': f"{d.creator.first_name} {d.creator.last_name}"
+                },
+                'created_at': serialize_datetime(d.created_at),
+                'updated_at': serialize_datetime(d.updated_at)
+            } for d in result['items']],
+            'pagination': result['pagination']
+        })
+    
+    elif request.method == 'POST':
+        try:
+            data = request.get_json()
+            
+            # Validate required fields
+            validation_error = validate_required_fields(data, ['document_name', 'document_url', 'signers'])
+            if validation_error:
+                return jsonify(validation_error), 400
+            
+            document = DocumentSignature(
+                company_id=company.id,
+                document_name=data['document_name'],
+                document_type=data.get('document_type', 'contract'),
+                document_url=data['document_url'],
+                original_document_url=data.get('original_document_url'),
+                module_source=data.get('module_source'),
+                source_record_id=data.get('source_record_id'),
+                signers=json.dumps(data['signers']),
+                signing_order=json.dumps(data.get('signing_order', [])),
+                expiry_date=datetime.strptime(data['expiry_date'], '%Y-%m-%d %H:%M:%S') if data.get('expiry_date') else None,
+                auto_archive_code=data.get('auto_archive_code'),
+                created_by=current_user.id
+            )
+            
+            db.session.add(document)
+            db.session.commit()
+            
+            # Update document management KPI
+            update_user_kpi(current_user.id, 'document_management', 'documents_created', 1)
+            
+            return jsonify({'message': 'Document signature workflow created successfully', 'id': document.id}), 201
+            
+        except Exception as e:
+            return handle_database_error(e)
+
+# File Upload Endpoints
+@app.route('/api/upload', methods=['POST'])
+@jwt_required()
+@company_required
+def file_upload():
+    """Safe file upload with validation"""
+    try:
+        current_user = get_current_user()
+        
+        if 'file' not in request.files:
+            return jsonify({'error': 'No file provided'}), 400
+        
+        file = request.files['file']
+        if file.filename == '':
+            return jsonify({'error': 'No file selected'}), 400
+        
+        # Validate file
+        if not allowed_file(file.filename):
+            return jsonify({'error': 'File type not allowed'}), 400
+        
+        # Create safe filename
+        filename = create_safe_filename(file.filename)
+        
+        # Create upload folder if it doesn't exist
+        upload_folder = app.config.get('UPLOAD_FOLDER', 'uploads')
+        import os
+        os.makedirs(upload_folder, exist_ok=True)
+        
+        # Save file
+        file_path = os.path.join(upload_folder, f"{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}_{filename}")
+        file.save(file_path)
+        
+        # Update file upload KPI
+        update_user_kpi(current_user.id, 'system', 'files_uploaded', 1)
+        
+        return jsonify({
+            'message': 'File uploaded successfully',
+            'filename': filename,
+            'file_url': f'/uploads/{os.path.basename(file_path)}',
+            'file_size': os.path.getsize(file_path)
+        }), 201
+        
+    except Exception as e:
+        logger.error(f"File upload error: {str(e)}")
+        return jsonify({'error': 'File upload failed'}), 500
+
+# API Metadata Endpoint
+@app.route('/api/meta', methods=['GET'])
+@jwt_required()
+def api_metadata():
+    """API metadata and resource information"""
+    return jsonify({
+        'version': '2.0',
+        'modules': {
+            'crm': {
+                'resources': ['customers', 'deals', 'quotes'],
+                'operations': ['list', 'create', 'read', 'update', 'delete']
+            },
+            'finance': {
+                'resources': ['invoices', 'vendor-payments'],
+                'operations': ['list', 'create', 'read', 'update', 'delete']
+            },
+            'hr': {
+                'resources': ['employees', 'attendance', 'leave-requests', 'training-programs', 'payroll'],
+                'operations': ['list', 'create', 'read', 'update', 'delete']
+            },
+            'supply-chain': {
+                'resources': ['inventory', 'purchase-orders', 'courier-shipments'],
+                'operations': ['list', 'create', 'read', 'update', 'delete']
+            },
+            'desk': {
+                'resources': ['tickets', 'work-orders'],
+                'operations': ['list', 'create', 'read', 'update', 'delete']
+            },
+            'vendor-management': {
+                'resources': ['vendors'],
+                'operations': ['list', 'create', 'read', 'update', 'delete']
+            },
+            'marketing': {
+                'resources': ['campaigns'],
+                'operations': ['list', 'create', 'read', 'update', 'delete']
+            },
+            'surveys': {
+                'resources': ['surveys', 'survey-responses'],
+                'operations': ['list', 'create', 'read', 'update', 'delete']
+            },
+            'community': {
+                'resources': ['posts', 'comments', 'likes'],
+                'operations': ['list', 'create', 'read', 'update', 'delete']
+            },
+            'core': {
+                'resources': ['companies', 'users', 'products', 'contracts'],
+                'operations': ['list', 'create', 'read', 'update', 'delete']
+            },
+            'compliance': {
+                'resources': ['compliance-audits'],
+                'operations': ['list', 'create', 'read', 'update', 'delete']
+            },
+            'business-analytics': {
+                'resources': ['business-analytics'],
+                'operations': ['list', 'create', 'read', 'update', 'delete']
+            },
+            'document-management': {
+                'resources': ['document-signatures'],
+                'operations': ['list', 'create', 'read', 'update', 'delete']
+            }
+        },
+        'features': {
+            'pagination': True,
+            'search': True,
+            'filtering': True,
+            'company_isolation': True,
+            'rbac': True,
+            'kpi_tracking': True,
+            'vigilance_alerts': True,
+            'file_uploads': True
+        },
+        'authentication': {
+            'type': 'JWT',
+            'endpoints': {
+                'login': '/api/auth/login',
+                'register': '/api/auth/register'
+            }
+        }
+    })
+
+# Health Check Endpoint (maintain existing)
+@app.route('/api/health', methods=['GET'])
+def health_check():
+    """System health check"""
+    return jsonify({
+        'status': 'ok',
+        'env': os.environ.get('FLASK_ENV', 'development'),
+        'version': '2.0',
+        'timestamp': datetime.utcnow().isoformat()
+    })
+
+# Profile endpoint (maintain existing functionality)
+@app.route('/api/profile', methods=['GET'])
+@jwt_required()
+def profile():
+    """Get current user profile"""
+    current_user = get_current_user()
+    if not current_user:
+        return jsonify({'error': 'User not found'}), 404
+    
+    return jsonify({
+        'id': current_user.id,
+        'username': current_user.username,
+        'email': current_user.email,
+        'first_name': current_user.first_name,
+        'last_name': current_user.last_name,
+        'profile_picture': current_user.profile_picture,
+        'phone': current_user.phone,
+        'department': current_user.department,
+        'position': current_user.position,
+        'role': current_user.role,
+        'company': {
+            'id': current_user.company.id,
+            'name': current_user.company.name,
+            'code': current_user.company.code
+        },
+        'last_login': serialize_datetime(current_user.last_login),
+        'current_location': {
+            'lat': current_user.current_location_lat,
+            'lng': current_user.current_location_lng,
+            'address': current_user.current_location_address
+        } if current_user.current_location_lat else None
+    })
+
+# ============================================================================
+# SURVEY RESPONSE MANAGEMENT
+# ============================================================================
+
+@app.route('/api/surveys/<int:survey_id>/responses', methods=['GET', 'POST'])
+@jwt_required()
+@company_required
+def survey_responses(survey_id):
+    """Survey response management"""
+    company = get_current_company()
+    current_user = get_current_user()
+    
+    # Verify survey exists and belongs to company
+    survey = Survey.query.filter_by(id=survey_id, company_id=company.id).first()
+    if not survey:
+        return jsonify({'error': 'Survey not found'}), 404
+    
+    if request.method == 'GET':
+        # Parse pagination parameters
+        page = request.args.get('page', 1, type=int)
+        per_page = request.args.get('per_page', 20, type=int)
+        
+        # Build query
+        query = SurveyResponse.query.filter_by(survey_id=survey_id, company_id=company.id)
+        
+        # Paginate results
+        result = paginate_query(query, page, per_page)
+        
+        return jsonify({
+            'responses': [{
+                'id': r.id,
+                'respondent_email': r.respondent_email,
+                'respondent_name': r.respondent_name,
+                'responses': json.loads(r.responses) if r.responses else {},
+                'completion_time_seconds': r.completion_time_seconds,
+                'ip_address': r.ip_address,
+                'user_agent': r.user_agent,
+                'submitted_at': serialize_datetime(r.submitted_at)
+            } for r in result['items']],
+            'pagination': result['pagination']
+        })
+    
+    elif request.method == 'POST':
+        try:
+            data = request.get_json()
+            
+            response = SurveyResponse(
+                company_id=company.id,
+                survey_id=survey_id,
+                respondent_email=data.get('respondent_email'),
+                respondent_name=data.get('respondent_name'),
+                responses=json.dumps(data.get('responses', {})),
+                completion_time_seconds=data.get('completion_time_seconds'),
+                ip_address=request.remote_addr,
+                user_agent=request.headers.get('User-Agent')
+            )
+            
+            db.session.add(response)
+            
+            # Update survey stats
+            survey.total_responses += 1
+            
+            db.session.commit()
+            
+            # Update survey KPI
+            update_user_kpi(current_user.id, 'surveys', 'survey_responses_collected', 1)
+            
+            return jsonify({'message': 'Survey response submitted successfully', 'id': response.id}), 201
+            
+        except Exception as e:
+            return handle_database_error(e)
+
+# ============================================================================
+# ENHANCED EXISTING ENDPOINTS
+# ============================================================================
+
+# Enhanced CRM endpoints with proper CRUD patterns
+@app.route('/api/crm/customers/<int:customer_id>', methods=['GET', 'PUT', 'DELETE'])
+@jwt_required()
+@company_required
+def crm_customer_detail(customer_id):
+    """Enhanced customer detail operations"""
+    company = get_current_company()
+    current_user = get_current_user()
+    
+    customer = Customer.query.filter_by(id=customer_id, company_id=company.id).first()
+    if not customer:
+        return jsonify({'error': 'Customer not found'}), 404
+    
+    if request.method == 'GET':
+        return jsonify({
+            'id': customer.id,
+            'name': customer.name,
+            'code': customer.code,
+            'email': customer.email,
+            'phone': customer.phone,
+            'address': customer.address,
+            'contact_person': customer.contact_person,
+            'website': customer.website,
+            'industry': customer.industry,
+            'customer_type': customer.customer_type,
+            'status': customer.status,
+            'credit_limit': serialize_decimal(customer.credit_limit),
+            'payment_terms': customer.payment_terms,
+            'lead_score': customer.lead_score,
+            'lifetime_value': serialize_decimal(customer.lifetime_value),
+            'location': {
+                'lat': customer.location_lat,
+                'lng': customer.location_lng
+            } if customer.location_lat else None,
+            'sales_rep': {
+                'id': customer.sales_rep.id,
+                'name': f"{customer.sales_rep.first_name} {customer.sales_rep.last_name}",
+                'email': customer.sales_rep.email,
+                'profile_picture': customer.sales_rep.profile_picture
+            } if customer.sales_rep else None,
+            'deals': [{
+                'id': d.id,
+                'name': d.name,
+                'amount': serialize_decimal(d.amount),
+                'stage': d.stage,
+                'status': d.status
+            } for d in customer.deals],
+            'tickets': [{
+                'id': t.id,
+                'ticket_number': t.ticket_number,
+                'subject': t.subject,
+                'status': t.status,
+                'priority': t.priority
+            } for t in customer.tickets],
+            'invoices': [{
+                'id': i.id,
+                'invoice_number': i.invoice_number,
+                'total_amount': serialize_decimal(i.total_amount),
+                'status': i.status,
+                'payment_status': i.payment_status
+            } for i in customer.invoices],
+            'created_at': serialize_datetime(customer.created_at),
+            'updated_at': serialize_datetime(customer.updated_at)
+        })
+    
+    elif request.method == 'PUT':
+        try:
+            data = request.get_json()
+            
+            # Update customer fields
+            customer.name = data.get('name', customer.name)
+            customer.code = data.get('code', customer.code)
+            customer.email = data.get('email', customer.email)
+            customer.phone = data.get('phone', customer.phone)
+            customer.address = data.get('address', customer.address)
+            customer.contact_person = data.get('contact_person', customer.contact_person)
+            customer.website = data.get('website', customer.website)
+            customer.industry = data.get('industry', customer.industry)
+            customer.customer_type = data.get('customer_type', customer.customer_type)
+            customer.status = data.get('status', customer.status)
+            customer.credit_limit = data.get('credit_limit', customer.credit_limit)
+            customer.payment_terms = data.get('payment_terms', customer.payment_terms)
+            customer.assigned_sales_rep = data.get('assigned_sales_rep', customer.assigned_sales_rep)
+            customer.lead_score = data.get('lead_score', customer.lead_score)
+            customer.lifetime_value = data.get('lifetime_value', customer.lifetime_value)
+            
+            if data.get('location'):
+                customer.location_lat = data['location'].get('lat')
+                customer.location_lng = data['location'].get('lng')
+            
+            customer.updated_at = datetime.utcnow()
+            db.session.commit()
+            
+            return jsonify({'message': 'Customer updated successfully'})
+            
+        except Exception as e:
+            return handle_database_error(e)
+    
+    elif request.method == 'DELETE':
+        try:
+            # Only admins can delete customers
+            if current_user.role != 'admin':
+                return jsonify({'error': 'Admin privileges required'}), 403
+            
+            # Soft delete by changing status
+            customer.status = 'inactive'
+            customer.updated_at = datetime.utcnow()
+            db.session.commit()
+            
+            return jsonify({'message': 'Customer deactivated successfully'})
+            
+        except Exception as e:
+            return handle_database_error(e)
+
+# ============================================================================
+# MAIN APPLICATION SETUP
+# ============================================================================
+
+if __name__ == '__main__':
+    # Create database tables if they don't exist
+    with app.app_context():
+        db.create_all()
+        logger.info("Database tables created successfully")
+    
+    # Run the application
+    app.run(debug=True, host='0.0.0.0', port=5000)
 
