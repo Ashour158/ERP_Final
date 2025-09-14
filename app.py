@@ -1114,7 +1114,8 @@ def health_check():
     """Health endpoint for Digital Ocean App Platform"""
     try:
         # Basic health check - test database connection
-        db.session.execute('SELECT 1')
+        from sqlalchemy import text
+        db.session.execute(text('SELECT 1'))
         
         return jsonify({
             'status': 'ok',
