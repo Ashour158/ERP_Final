@@ -1,9 +1,145 @@
 # Complete ERP System V2.0
 ## Beyond Zoho, SAP, Oracle NetSuite, Microsoft Dynamics, Azure, and Odoo Combined
 
-### 🚀 Revolutionary Enterprise Resource Planning System
+### 🚀 Revolutionary Enterprise Resource Planning System with Complete CRUD Operations
 
 This is the most comprehensive ERP system ever built, featuring **14 fully integrated modules** with advanced capabilities that surpass all major ERP platforms combined. Built with modern technologies and designed for Digital Ocean cloud deployment.
+
+**V2.0 NEW FEATURES:**
+- ✅ **Complete CRUD APIs** for all 38+ entities with consistent patterns
+- ✅ **Company-based multitenancy** with strict data isolation
+- ✅ **Role-based access control** (admin, manager, user) on all endpoints
+- ✅ **Request validation** and response serialization
+- ✅ **Pagination and search** across all list endpoints
+- ✅ **KPI tracking** and vigilance alerts on key business events
+- ✅ **File upload** capabilities with security validation
+- ✅ **API metadata** endpoints for discoverability
+
+---
+
+## 📋 Complete CRUD API Reference
+
+### **Authentication**
+- `POST /api/auth/login` - User authentication
+- `POST /api/auth/register` - User registration with company setup
+- `GET /api/profile` - Current user profile
+
+### **Core Management**
+- `GET|POST /api/companies` - Company management (Admin only)
+- `GET|PUT|DELETE /api/companies/{id}` - Company operations
+- `GET|POST /api/users` - User management with RBAC
+- `GET|PUT|DELETE /api/users/{id}` - User operations
+- `GET|POST /api/products` - Product catalog management
+- `GET|PUT|DELETE /api/products/{id}` - Product operations
+
+### **CRM Module**
+- `GET|POST /api/crm/customers` - Customer 360-degree management
+- `GET|PUT|DELETE /api/crm/customers/{id}` - Customer operations
+- `GET|POST /api/crm/deals` - Deal pipeline with forecasting
+- `GET|POST /api/crm/quotes` - Quote and RFQ management
+- `POST /api/crm/checkin` - GPS check-in for sales visits
+
+### **Finance Module**
+- `GET|POST /api/finance/invoices` - Multi-currency invoicing
+- `GET|POST /api/finance/vendor-payments` - Vendor payment processing
+
+### **HR Module**
+- `GET|POST /api/hr/employees` - Employee lifecycle management
+- `POST /api/hr/attendance/checkin` - GPS-enabled attendance check-in
+- `POST /api/hr/attendance/checkout` - GPS-enabled attendance check-out
+- `GET|POST /api/hr/leave-requests` - Leave management with workflows
+- `GET|POST /api/hr/training-programs` - L&D module
+- `GET|POST /api/hr/payroll` - Multi-country payroll compliance
+
+### **Supply Chain Module**
+- `GET|POST /api/supply-chain/inventory` - Advanced inventory with FIFO/LIFO
+- `GET|POST /api/supply-chain/purchase-orders` - Purchase order management
+- `GET|POST /api/supply-chain/courier-shipments` - Courier management
+
+### **Desk Module**
+- `GET|POST /api/desk/tickets` - Multi-channel ticketing with SLA
+- `GET|POST /api/desk/work-orders` - GPS-enabled work orders
+- `POST /api/desk/work-orders/{id}/checkin` - Field agent GPS check-in
+
+### **Vendor Management**
+- `GET|POST /api/vendors` - Integrated vendor management
+- `GET|PUT /api/vendors/{id}/performance` - Performance tracking
+
+### **Marketing Module**
+- `GET|POST /api/marketing/campaigns` - E-commerce and social media campaigns
+
+### **Survey Module**
+- `GET|POST /api/surveys` - Multi-channel survey distribution
+- `GET|POST /api/surveys/{id}/responses` - Survey response management
+
+### **Community Module**
+- `GET|POST /api/community/posts` - Internal social platform
+- `POST /api/community/posts/{id}/like` - Post interactions
+
+### **Contract Management**
+- `GET|POST /api/contracts` - AI-powered contract lifecycle
+- `GET|PUT|DELETE /api/contracts/{id}` - Contract operations
+
+### **Business Analytics**
+- `GET|POST /api/business-analytics` - Cross-module intelligence
+
+### **Compliance & Quality**
+- `GET|POST /api/compliance-audits` - ISO 9001 compliance management
+
+### **Document Management**
+- `GET|POST /api/document-signatures` - Digital signature workflows
+- `POST /api/upload` - Secure file upload
+
+### **System Utilities**
+- `GET /api/health` - System health check
+- `GET /api/meta` - API metadata and resource discovery
+
+---
+
+## 📊 API Features
+
+### **Consistent Patterns**
+All CRUD endpoints follow these patterns:
+- `GET /api/{resource}` - List with pagination (`?page=1&per_page=20`)
+- `POST /api/{resource}` - Create new record
+- `GET /api/{resource}/{id}` - Get detailed record
+- `PUT /api/{resource}/{id}` - Update record
+- `DELETE /api/{resource}/{id}` - Delete/deactivate record
+
+### **Search and Filtering**
+- `?q=search_term` - Full-text search across string columns
+- `?status=active` - Filter by status fields
+- `?type=category` - Filter by type/category fields
+- `?page=1&per_page=20` - Pagination controls
+
+### **Response Format**
+```json
+{
+  "items": [...],
+  "pagination": {
+    "page": 1,
+    "per_page": 20,
+    "total": 150,
+    "pages": 8,
+    "has_prev": false,
+    "has_next": true
+  }
+}
+```
+
+### **Error Handling**
+- `400` - Validation errors, missing required fields
+- `401` - Authentication required
+- `403` - Insufficient permissions
+- `404` - Resource not found
+- `409` - Conflict (unique constraint violations)
+- `500` - Server errors
+
+### **Authentication**
+All endpoints (except auth and health) require JWT token:
+```http
+Authorization: Bearer {jwt_token}
+```
 
 ---
 
