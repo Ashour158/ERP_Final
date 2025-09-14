@@ -18,12 +18,27 @@ from functools import wraps
 import logging
 from config import config
 
+# Load environment variables from .env file if it exists
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+    print("Loaded environment variables from .env file")
+except ImportError:
+    # python-dotenv not available, continue without it
+    print("python-dotenv not available, using system environment variables")
+except Exception as e:
+    print(f"Warning: Could not load .env file: {e}")
+
 # Initialize Flask app
 app = Flask(__name__)
 
 # Load configuration based on FLASK_ENV
 env = os.environ.get('FLASK_ENV', 'development')
-app.config.from_object(config.get(env, config['default']))
+config_class = config.get(env, config['default'])
+app.config.from_object(config_class)
+
+print(f"Loaded configuration for environment: {env}")
+print(f"Database URI: {app.config.get('SQLALCHEMY_DATABASE_URI', 'Not set')}")
 
 # Initialize extensions
 db = SQLAlchemy(app)
@@ -32,6 +47,7 @@ jwt = JWTManager(app)
 # Initialize CORS with origins from config
 cors_origins = getattr(app.config, 'CORS_ORIGINS', ["*"])
 CORS(app, origins=cors_origins)
+print(f"CORS origins: {cors_origins}")
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -1273,62 +1289,128 @@ def get_user_profile():
 @company_required
 def crm_customers():
     """CRM customer management with 360-degree view"""
-    company = get_current_company()
-    
-    if request.method == 'GET':
-        customers = Customer.query.filter_by(company_id=company.id).all()
-        return jsonify([{
-            'id': c.id,
-            'name': c.name,
-            'code': c.code,
-            'email': c.email,
-            'phone': c.phone,
-            'address': c.address,
-            'contact_person': c.contact_person,
-            'industry': c.industry,
-            'customer_type': c.customer_type,
-            'status': c.status,
-            'lead_score': float(c.lead_score) if c.lead_score else 0.0,
-            'lifetime_value': float(c.lifetime_value) if c.lifetime_value else 0.0,
-            'sales_rep': {
-                'id': c.sales_rep.id,
-                'name': f"{c.sales_rep.first_name} {c.sales_rep.last_name}",
-                'profile_picture': c.sales_rep.profile_picture
-            } if c.sales_rep else None,
-            'location': {
-                'lat': c.location_lat,
-                'lng': c.location_lng
-            } if c.location_lat and c.location_lng else None,
-            'created_at': c.created_at.isoformat()
-        } for c in customers])
-    
-    elif request.method == 'POST':
-        data = request.get_json()
-        current_user = get_current_user()
+    try:
+        company = get_current_company()
         
-        customer = Customer(
-            company_id=company.id,
-            name=data['name'],
-            code=data.get('code', f"CUST-{datetime.utcnow().strftime('%Y%m%d%H%M%S')}"),
-            email=data.get('email'),
-            phone=data.get('phone'),
-            address=data.get('address'),
-            contact_person=data.get('contact_person'),
-            website=data.get('website'),
-            industry=data.get('industry'),
-            customer_type=data.get('customer_type', 'prospect'),
-            assigned_sales_rep=data.get('assigned_sales_rep', current_user.id),
-            location_lat=data.get('location', {}).get('lat'),
-            location_lng=data.get('location', {}).get('lng')
-        )
+        if request.method == 'GET':
+            # Get pagination parameters
+            page = safe_int(request.args.get('page', 1), 1)
+            per_page = safe_int(request.args.get('per_page', 20), 20)
+            
+            # Build query with optional filters
+            query = Customer.query.filter_by(company_id=company.id)
+            
+            # Add filters
+            if request.args.get('status'):
+                query = query.filter(Customer.status == request.args.get('status'))
+            if request.args.get('customer_type'):
+                query = query.filter(Customer.customer_type == request.args.get('customer_type'))
+            if request.args.get('industry'):
+                query = query.filter(Customer.industry == request.args.get('industry'))
+            if request.args.get('search'):
+                search_term = f"%{request.args.get('search')}%"
+                query = query.filter(
+                    db.or_(
+                        Customer.name.ilike(search_term),
+                        Customer.email.ilike(search_term),
+                        Customer.phone.ilike(search_term)
+                    )
+                )
+            
+            # Order by creation date (newest first)
+            query = query.order_by(Customer.created_at.desc())
+            
+            # Apply pagination
+            result = paginate_query(query, page, per_page)
+            customers = result['items']
+            
+            return jsonify({
+                'customers': [{
+                    'id': c.id,
+                    'name': c.name,
+                    'code': c.code,
+                    'email': c.email,
+                    'phone': c.phone,
+                    'address': c.address,
+                    'contact_person': c.contact_person,
+                    'industry': c.industry,
+                    'customer_type': c.customer_type,
+                    'status': c.status,
+                    'lead_score': safe_float(c.lead_score),
+                    'lifetime_value': safe_float(c.lifetime_value),
+                    'sales_rep': {
+                        'id': c.sales_rep.id,
+                        'name': f"{c.sales_rep.first_name} {c.sales_rep.last_name}",
+                        'profile_picture': c.sales_rep.profile_picture
+                    } if c.sales_rep else None,
+                    'location': {
+                        'lat': c.location_lat,
+                        'lng': c.location_lng
+                    } if c.location_lat and c.location_lng else None,
+                    'created_at': c.created_at.isoformat()
+                } for c in customers],
+                'pagination': result['pagination']
+            }), 200
         
-        db.session.add(customer)
-        db.session.commit()
-        
-        # Update CRM KPI
-        update_user_kpi(current_user.id, 'crm', 'customers_created', 1)
-        
-        return jsonify({'message': 'Customer created successfully', 'id': customer.id}), 201
+        elif request.method == 'POST':
+            # Use validation decorator data
+            @validate_json_input(
+                required_fields=['name'],
+                optional_fields=['code', 'email', 'phone', 'address', 'contact_person', 
+                               'website', 'industry', 'customer_type', 'assigned_sales_rep', 'location']
+            )
+            def create_customer():
+                data = request.sanitized_json
+                current_user = get_current_user()
+                
+                # Check for duplicate customer name in company
+                existing = Customer.query.filter_by(
+                    company_id=company.id, 
+                    name=data['name']
+                ).first()
+                if existing:
+                    return jsonify({'error': 'Customer with this name already exists'}), 400
+                
+                customer = Customer(
+                    company_id=company.id,
+                    name=data['name'],
+                    code=data.get('code', f"CUST-{datetime.utcnow().strftime('%Y%m%d%H%M%S')}"),
+                    email=data.get('email'),
+                    phone=data.get('phone'),
+                    address=data.get('address'),
+                    contact_person=data.get('contact_person'),
+                    website=data.get('website'),
+                    industry=data.get('industry'),
+                    customer_type=data.get('customer_type', 'prospect'),
+                    assigned_sales_rep=safe_int(data.get('assigned_sales_rep'), current_user.id),
+                    location_lat=data.get('location', {}).get('lat') if isinstance(data.get('location'), dict) else None,
+                    location_lng=data.get('location', {}).get('lng') if isinstance(data.get('location'), dict) else None
+                )
+                
+                db.session.add(customer)
+                db.session.commit()
+                
+                # Update CRM KPI
+                update_user_kpi(current_user.id, 'crm', 'customers_created', 1)
+                
+                logger.info(f"Customer created: {customer.name} by user {current_user.id}")
+                return jsonify({
+                    'message': 'Customer created successfully', 
+                    'id': customer.id,
+                    'customer': {
+                        'id': customer.id,
+                        'name': customer.name,
+                        'code': customer.code,
+                        'status': customer.status
+                    }
+                }), 201
+            
+            return create_customer()
+            
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"CRM customers error: {str(e)}")
+        return jsonify({'error': 'Failed to process request'}), 500
 
 @app.route('/api/crm/deals', methods=['GET', 'POST'])
 @jwt_required()
@@ -2306,57 +2388,122 @@ def desk_work_order_checkin(wo_id):
 @company_required
 def vendors():
     """Integrated vendor management across all modules"""
-    company = get_current_company()
-    current_user = get_current_user()
-    
-    if request.method == 'GET':
-        vendors = Vendor.query.filter_by(company_id=company.id).all()
-        return jsonify([{
-            'id': v.id,
-            'name': v.name,
-            'code': v.code,
-            'email': v.email,
-            'phone': v.phone,
-            'address': v.address,
-            'contact_person': v.contact_person,
-            'website': v.website,
-            'vendor_type': v.vendor_type,
-            'status': v.status,
-            'performance_score': v.performance_score,
-            'risk_score': v.risk_score,
-            'payment_terms': v.payment_terms,
-            'credit_limit': float(v.credit_limit) if v.credit_limit else 0.0,
-            'compliance_status': v.compliance_status,
-            'certifications': json.loads(v.certifications) if v.certifications else [],
-            'created_at': v.created_at.isoformat()
-        } for v in vendors])
-    
-    elif request.method == 'POST':
-        data = request.get_json()
+    try:
+        company = get_current_company()
+        current_user = get_current_user()
         
-        vendor = Vendor(
-            company_id=company.id,
-            name=data['name'],
-            code=data.get('code', f"VEN-{datetime.utcnow().strftime('%Y%m%d%H%M%S')}"),
-            email=data.get('email'),
-            phone=data.get('phone'),
-            address=data.get('address'),
-            contact_person=data.get('contact_person'),
-            website=data.get('website'),
-            tax_id=data.get('tax_id'),
-            payment_terms=data.get('payment_terms'),
-            credit_limit=data.get('credit_limit'),
-            vendor_type=data.get('vendor_type', 'supplier'),
-            certifications=json.dumps(data.get('certifications', []))
-        )
+        if request.method == 'GET':
+            # Get pagination parameters
+            page = safe_int(request.args.get('page', 1), 1)
+            per_page = safe_int(request.args.get('per_page', 20), 20)
+            
+            # Build query with optional filters
+            query = Vendor.query.filter_by(company_id=company.id)
+            
+            # Add filters
+            if request.args.get('status'):
+                query = query.filter(Vendor.status == request.args.get('status'))
+            if request.args.get('vendor_type'):
+                query = query.filter(Vendor.vendor_type == request.args.get('vendor_type'))
+            if request.args.get('search'):
+                search_term = f"%{request.args.get('search')}%"
+                query = query.filter(
+                    db.or_(
+                        Vendor.name.ilike(search_term),
+                        Vendor.email.ilike(search_term),
+                        Vendor.code.ilike(search_term)
+                    )
+                )
+            
+            # Order by creation date (newest first)
+            query = query.order_by(Vendor.created_at.desc())
+            
+            # Apply pagination
+            result = paginate_query(query, page, per_page)
+            vendors_list = result['items']
+            
+            return jsonify({
+                'vendors': [{
+                    'id': v.id,
+                    'name': v.name,
+                    'code': v.code,
+                    'email': v.email,
+                    'phone': v.phone,
+                    'address': v.address,
+                    'contact_person': v.contact_person,
+                    'website': v.website,
+                    'vendor_type': v.vendor_type,
+                    'status': v.status,
+                    'performance_score': safe_float(v.performance_score),
+                    'risk_score': safe_float(v.risk_score),
+                    'payment_terms': v.payment_terms,
+                    'credit_limit': safe_float(v.credit_limit),
+                    'compliance_status': v.compliance_status,
+                    'certifications': json.loads(v.certifications) if v.certifications else [],
+                    'created_at': v.created_at.isoformat()
+                } for v in vendors_list],
+                'pagination': result['pagination']
+            }), 200
         
-        db.session.add(vendor)
-        db.session.commit()
-        
-        # Update vendor management KPI
-        update_user_kpi(current_user.id, 'vendor_management', 'vendors_onboarded', 1)
-        
-        return jsonify({'message': 'Vendor created successfully', 'id': vendor.id}), 201
+        elif request.method == 'POST':
+            # Use validation decorator
+            @validate_json_input(
+                required_fields=['name'],
+                optional_fields=['code', 'email', 'phone', 'address', 'contact_person',
+                               'website', 'tax_id', 'payment_terms', 'credit_limit',
+                               'vendor_type', 'certifications']
+            )
+            def create_vendor():
+                data = request.sanitized_json
+                
+                # Check for duplicate vendor name in company
+                existing = Vendor.query.filter_by(
+                    company_id=company.id,
+                    name=data['name']
+                ).first()
+                if existing:
+                    return jsonify({'error': 'Vendor with this name already exists'}), 400
+                
+                vendor = Vendor(
+                    company_id=company.id,
+                    name=data['name'],
+                    code=data.get('code', f"VEN-{datetime.utcnow().strftime('%Y%m%d%H%M%S')}"),
+                    email=data.get('email'),
+                    phone=data.get('phone'),
+                    address=data.get('address'),
+                    contact_person=data.get('contact_person'),
+                    website=data.get('website'),
+                    tax_id=data.get('tax_id'),
+                    payment_terms=data.get('payment_terms'),
+                    credit_limit=safe_float(data.get('credit_limit')),
+                    vendor_type=data.get('vendor_type', 'supplier'),
+                    certifications=json.dumps(data.get('certifications', []))
+                )
+                
+                db.session.add(vendor)
+                db.session.commit()
+                
+                # Update vendor management KPI
+                update_user_kpi(current_user.id, 'vendor_management', 'vendors_onboarded', 1)
+                
+                logger.info(f"Vendor created: {vendor.name} by user {current_user.id}")
+                return jsonify({
+                    'message': 'Vendor created successfully',
+                    'id': vendor.id,
+                    'vendor': {
+                        'id': vendor.id,
+                        'name': vendor.name,
+                        'code': vendor.code,
+                        'status': vendor.status
+                    }
+                }), 201
+            
+            return create_vendor()
+            
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Vendors endpoint error: {str(e)}")
+        return jsonify({'error': 'Failed to process request'}), 500
 
 @app.route('/api/vendors/<int:vendor_id>/performance', methods=['GET', 'PUT'])
 @jwt_required()
