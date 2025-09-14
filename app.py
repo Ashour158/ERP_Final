@@ -10,7 +10,9 @@ from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
 from flask_jwt_extended import JWTManager, jwt_required, create_access_token, get_jwt_identity
 from werkzeug.security import generate_password_hash, check_password_hash
-from datetime import datetime, timedelta
+from werkzeug.exceptions import RequestEntityTooLarge
+from datetime import datetime, timedelta, date
+from sqlalchemy import or_
 import os
 import json
 import uuid
@@ -37,8 +39,16 @@ env = os.environ.get('FLASK_ENV', 'development')
 config_class = config.get(env, config['default'])
 app.config.from_object(config_class)
 
+# Configure file upload limits
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
+app.config['UPLOAD_FOLDER'] = os.path.join(os.getcwd(), 'uploads')
+
+# Create uploads directory if it doesn't exist
+os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+
 print(f"Loaded configuration for environment: {env}")
 print(f"Database URI: {app.config.get('SQLALCHEMY_DATABASE_URI', 'Not set')}")
+print(f"Upload folder: {app.config['UPLOAD_FOLDER']}")
 
 # Initialize extensions
 db = SQLAlchemy(app)
@@ -269,7 +279,7 @@ class InventoryItem(db.Model):
     unit_cost = db.Column(db.Numeric(15, 2))
     expiry_date = db.Column(db.Date)
     manufacturing_date = db.Column(db.Date)
-    received_date = db.Column(db.Date, default=datetime.utcnow)
+    received_date = db.Column(db.Date, default=date.today)
     status = db.Column(db.String(20), default='available')
     temperature_log = db.Column(db.Text)  # JSON string for temperature readings
     photos = db.Column(db.Text)  # JSON string for photo URLs
@@ -284,7 +294,7 @@ class PurchaseOrder(db.Model):
     company_id = db.Column(db.Integer, db.ForeignKey('companies.id'), nullable=False)
     vendor_id = db.Column(db.Integer, db.ForeignKey('vendors.id'), nullable=False)
     po_number = db.Column(db.String(50), unique=True, nullable=False)
-    order_date = db.Column(db.Date, default=datetime.utcnow)
+    order_date = db.Column(db.Date, default=date.today)
     expected_delivery_date = db.Column(db.Date)
     actual_delivery_date = db.Column(db.Date)
     total_amount = db.Column(db.Numeric(15, 2), nullable=False)
@@ -307,7 +317,7 @@ class Invoice(db.Model):
     company_id = db.Column(db.Integer, db.ForeignKey('companies.id'), nullable=False)
     customer_id = db.Column(db.Integer, db.ForeignKey('customers.id'), nullable=False)
     invoice_number = db.Column(db.String(50), unique=True, nullable=False)
-    invoice_date = db.Column(db.Date, default=datetime.utcnow)
+    invoice_date = db.Column(db.Date, default=date.today)
     due_date = db.Column(db.Date)
     subtotal = db.Column(db.Numeric(15, 2), nullable=False)
     tax_amount = db.Column(db.Numeric(15, 2), default=0.0)
@@ -499,7 +509,7 @@ class LeaveRequest(db.Model):
     total_days = db.Column(db.Float, nullable=False)
     reason = db.Column(db.Text)
     status = db.Column(db.String(20), default='pending')  # pending, approved, rejected, cancelled
-    applied_date = db.Column(db.Date, default=datetime.utcnow)
+    applied_date = db.Column(db.Date, default=date.today)
     approved_by = db.Column(db.Integer, db.ForeignKey('users.id'))
     approved_date = db.Column(db.Date)
     rejection_reason = db.Column(db.Text)
@@ -517,7 +527,7 @@ class TrainingRecord(db.Model):
     company_id = db.Column(db.Integer, db.ForeignKey('companies.id'), nullable=False)
     employee_id = db.Column(db.Integer, db.ForeignKey('employees.id'), nullable=False)
     training_program_id = db.Column(db.Integer, db.ForeignKey('training_programs.id'), nullable=False)
-    enrollment_date = db.Column(db.Date, default=datetime.utcnow)
+    enrollment_date = db.Column(db.Date, default=date.today)
     start_date = db.Column(db.Date)
     completion_date = db.Column(db.Date)
     status = db.Column(db.String(20), default='enrolled')  # enrolled, in_progress, completed, cancelled
@@ -1023,20 +1033,34 @@ def create_vigilance_alert(company_id, alert_type, severity, module, title, desc
         logger.error(f"Failed to create vigilance alert: {str(e)}")
         return None
 
-def update_user_kpi(user_id, module, kpi_name, current_value, target_value=None):
-    """Update user KPI across all modules with safe DB operations and monthly periodization"""
+def update_user_kpi(user_id, module, kpi_name, increment_by, target_value=None, company_id=None):
+    """Update user KPI across all modules with safe DB operations and incremental updates"""
     try:
-        # Get current user and company context
-        current_user = User.query.get(user_id)
-        if not current_user:
-            logger.error(f"User {user_id} not found for KPI update")
-            return None
+        # Get company_id if not provided
+        if company_id is None:
+            # Try to get from current JWT context first
+            try:
+                current_user_id = get_jwt_identity()
+                if current_user_id:
+                    current_user = User.query.get(current_user_id)
+                    if current_user:
+                        company_id = current_user.company_id
+            except:
+                # JWT context not available, get directly from user
+                pass
             
-        company_id = current_user.company_id
+            # If still no company_id, get it from the user directly
+            if company_id is None:
+                user = User.query.get(user_id)
+                if not user:
+                    logger.error(f"User {user_id} not found for KPI update")
+                    return None
+                company_id = user.company_id
         
         # Get current month period for periodization
         current_date = datetime.utcnow()
-        period_key = current_date.strftime('%Y-%m')  # YYYY-MM format
+        period_start = current_date.replace(day=1).date()
+        period_end = (current_date.replace(day=28) + timedelta(days=4)).replace(day=1) - timedelta(days=1)
         
         # Find existing KPI for current period
         kpi = UserKPI.query.filter_by(
@@ -1044,7 +1068,8 @@ def update_user_kpi(user_id, module, kpi_name, current_value, target_value=None)
             user_id=user_id,
             module=module,
             kpi_name=kpi_name,
-            period=period_key
+            period_start=period_start,
+            period_end=period_end
         ).first()
         
         if not kpi:
@@ -1054,25 +1079,24 @@ def update_user_kpi(user_id, module, kpi_name, current_value, target_value=None)
                 user_id=user_id,
                 module=module,
                 kpi_name=kpi_name,
-                period=period_key,
+                period='monthly',
+                period_start=period_start,
+                period_end=period_end,
                 target_value=target_value or 100.0,
-                current_value=current_value
+                current_value=increment_by,
+                unit='count' if kpi_name.endswith('_count') else 'points'
             )
             db.session.add(kpi)
-            logger.info(f"Created new KPI {kpi_name} for user {user_id} in period {period_key}")
+            logger.info(f"Created new KPI {kpi_name} for user {user_id} in period {period_start}")
         else:
-            # Update existing KPI - accumulate for certain types or replace for others
-            if kpi_name.endswith('_count') or kpi_name.endswith('_total'):
-                # Accumulate count/total values
-                kpi.current_value = float(kpi.current_value or 0) + float(current_value)
-            else:
-                # Replace values for averages, percentages, etc.
-                kpi.current_value = current_value
-                
+            # Increment existing KPI value
+            kpi.current_value = float(kpi.current_value or 0) + float(increment_by)
+            
+            # Update target if provided
             if target_value:
                 kpi.target_value = target_value
             
-            logger.info(f"Updated KPI {kpi_name} for user {user_id}: {kpi.current_value}")
+            logger.info(f"Updated KPI {kpi_name} for user {user_id}: {kpi.current_value} (+{increment_by})")
         
         # Calculate achievement percentage
         if kpi.target_value and kpi.target_value > 0:
@@ -1091,7 +1115,7 @@ def update_user_kpi(user_id, module, kpi_name, current_value, target_value=None)
                 severity='medium' if kpi.achievement_percentage >= 50 else 'high',
                 module=module,
                 title=f'KPI Below Target: {kpi_name}',
-                description=f'User {user_id} KPI "{kpi_name}" is at {kpi.achievement_percentage:.1f}% of target in {period_key}',
+                description=f'User {user_id} KPI "{kpi_name}" is at {kpi.achievement_percentage:.1f}% of target',
                 affected_entity_type='user',
                 affected_entity_id=user_id,
                 threshold_value=kpi.target_value,
@@ -1130,6 +1154,34 @@ def health_check():
             'timestamp': datetime.utcnow().isoformat(),
             'error': 'Database connection failed'
         }), 503
+
+# ============================================================================
+# FILE UPLOAD HANDLERS AND ROUTES
+# ============================================================================
+
+@app.errorhandler(RequestEntityTooLarge)
+def handle_file_too_large(e):
+    """Handle file size too large error"""
+    return jsonify({
+        'error': 'File size too large',
+        'message': 'Maximum file size is 16MB',
+        'max_size': '16MB'
+    }), 413
+
+@app.route('/uploads/<filename>', methods=['GET'])
+def serve_uploaded_file(filename):
+    """Serve uploaded files securely"""
+    try:
+        # Basic security: ensure filename doesn't contain path traversal
+        if '..' in filename or '/' in filename or '\\' in filename:
+            return jsonify({'error': 'Invalid filename'}), 400
+        
+        return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
+    except FileNotFoundError:
+        return jsonify({'error': 'File not found'}), 404
+    except Exception as e:
+        logger.error(f"Error serving file {filename}: {str(e)}")
+        return jsonify({'error': 'Failed to serve file'}), 500
 
 # ============================================================================
 # AUTHENTICATION ROUTES
@@ -1310,7 +1362,7 @@ def crm_customers():
             if request.args.get('search'):
                 search_term = f"%{request.args.get('search')}%"
                 query = query.filter(
-                    db.or_(
+                    or_(
                         Customer.name.ilike(search_term),
                         Customer.email.ilike(search_term),
                         Customer.phone.ilike(search_term)
@@ -2408,7 +2460,7 @@ def vendors():
             if request.args.get('search'):
                 search_term = f"%{request.args.get('search')}%"
                 query = query.filter(
-                    db.or_(
+                    or_(
                         Vendor.name.ilike(search_term),
                         Vendor.email.ilike(search_term),
                         Vendor.code.ilike(search_term)
