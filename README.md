@@ -70,6 +70,38 @@ This is the most comprehensive ERP system ever built, featuring **14 fully integ
 
 ---
 
+## 🔧 Development & CI/CD Setup
+
+### **Python CI Pipeline**
+This project uses GitHub Actions with a Python CI pipeline that tests on Python 3.11 and 3.12:
+- **Linting**: black, isort, flake8, bandit for code quality
+- **Testing**: pytest with coverage reporting
+- **Matrix Testing**: Ensures compatibility across Python 3.11 and 3.12
+
+### **Container Registry (GHCR)**
+Docker images are automatically built and published to GitHub Container Registry:
+- **Default Registry**: `ghcr.io/ashour158/erp_final` 
+- **Authentication**: Uses `GITHUB_TOKEN` by default
+- **Optional Secrets**:
+  - `CR_PAT`: Custom GitHub Personal Access Token (fallback)
+  - `IMAGE_NAME`: Custom image name (overrides default)
+
+### **Branch Protection Setup**
+To enable branch protection for the main branch, configure these required status checks:
+- **Python CI** - Ensures code quality and tests pass
+- **CodeQL** - Security scanning and vulnerability detection  
+- **Docker** - Container build and registry push validation
+
+*Note: Branch protection requires repository admin access and must be configured manually in GitHub settings.*
+
+### **Release Automation**
+This repository uses release-please for automated version management:
+- **Automatic Versioning**: Based on conventional commits
+- **Release Notes**: Auto-generated from commit messages
+- **Required Permissions**: Actions must have "Read and write permissions" and "Allow GitHub Actions to create and approve pull requests" enabled in repository settings
+
+---
+
 ## 🚀 Digital Ocean Deployment
 
 ### **Quick Deployment Steps:**
