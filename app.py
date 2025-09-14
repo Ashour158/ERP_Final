@@ -16,19 +16,22 @@ import json
 import uuid
 from functools import wraps
 import logging
+from config import config
 
 # Initialize Flask app
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'your-secret-key-change-in-production'
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///complete_erp.db'
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.config['JWT_SECRET_KEY'] = 'jwt-secret-string-change-in-production'
-app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(hours=24)
+
+# Load configuration based on FLASK_ENV
+env = os.environ.get('FLASK_ENV', 'development')
+app.config.from_object(config.get(env, config['default']))
 
 # Initialize extensions
 db = SQLAlchemy(app)
 jwt = JWTManager(app)
-CORS(app, origins="*")
+
+# Initialize CORS with origins from config
+cors_origins = getattr(app.config, 'CORS_ORIGINS', ["*"])
+CORS(app, origins=cors_origins)
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -889,6 +892,85 @@ def company_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
+def validate_json_input(required_fields=None, optional_fields=None):
+    """Decorator to validate JSON input"""
+    def decorator(f):
+        @wraps(f)
+        def decorated_function(*args, **kwargs):
+            data = request.get_json()
+            if not data:
+                return jsonify({'error': 'JSON data required'}), 400
+            
+            # Check required fields
+            if required_fields:
+                missing_fields = [field for field in required_fields if not data.get(field)]
+                if missing_fields:
+                    return jsonify({
+                        'error': f'Missing required fields: {", ".join(missing_fields)}'
+                    }), 400
+            
+            # Validate field types and sanitize input
+            sanitized_data = {}
+            all_fields = (required_fields or []) + (optional_fields or [])
+            
+            for field in all_fields:
+                if field in data:
+                    value = data[field]
+                    # Basic sanitization
+                    if isinstance(value, str):
+                        value = value.strip()
+                        if len(value) > 1000:  # Prevent extremely long strings
+                            return jsonify({
+                                'error': f'Field {field} is too long (max 1000 characters)'
+                            }), 400
+                    sanitized_data[field] = value
+            
+            # Add sanitized data to request context
+            request.sanitized_json = sanitized_data
+            return f(*args, **kwargs)
+        return decorated_function
+    return decorator
+
+def safe_float(value, default=0.0):
+    """Safely convert value to float"""
+    try:
+        return float(value) if value is not None else default
+    except (ValueError, TypeError):
+        return default
+
+def safe_int(value, default=0):
+    """Safely convert value to int"""
+    try:
+        return int(value) if value is not None else default
+    except (ValueError, TypeError):
+        return default
+
+def paginate_query(query, page=1, per_page=20, max_per_page=100):
+    """Add pagination to query with limits"""
+    page = safe_int(page, 1)
+    per_page = min(safe_int(per_page, 20), max_per_page)
+    
+    if page < 1:
+        page = 1
+    if per_page < 1:
+        per_page = 20
+        
+    offset = (page - 1) * per_page
+    items = query.offset(offset).limit(per_page).all()
+    total = query.count()
+    
+    return {
+        'items': items,
+        'pagination': {
+            'page': page,
+            'per_page': per_page,
+            'total': total,
+            'pages': (total + per_page - 1) // per_page,
+            'has_next': offset + per_page < total,
+            'has_prev': page > 1
+        }
+    }
+
 def get_current_user():
     """Get current user with company context"""
     current_user_id = get_jwt_identity()
@@ -902,70 +984,136 @@ def get_current_company():
 def create_vigilance_alert(company_id, alert_type, severity, module, title, description, 
                           affected_entity_type=None, affected_entity_id=None, 
                           threshold_value=None, actual_value=None):
-    """Create vigilance alert for monitoring"""
-    alert = VigilanceAlert(
-        company_id=company_id,
-        alert_type=alert_type,
-        severity=severity,
-        module=module,
-        title=title,
-        description=description,
-        affected_entity_type=affected_entity_type,
-        affected_entity_id=affected_entity_id,
-        threshold_value=threshold_value,
-        actual_value=actual_value
-    )
-    db.session.add(alert)
-    db.session.commit()
-    return alert
+    """Create vigilance alert for monitoring with safe DB operations"""
+    try:
+        alert = VigilanceAlert(
+            company_id=company_id,
+            alert_type=alert_type,
+            severity=severity,
+            module=module,
+            title=title,
+            description=description,
+            affected_entity_type=affected_entity_type,
+            affected_entity_id=affected_entity_id,
+            threshold_value=threshold_value,
+            actual_value=actual_value
+        )
+        db.session.add(alert)
+        db.session.commit()
+        logger.info(f"Vigilance alert created: {title} for company {company_id}")
+        return alert
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Failed to create vigilance alert: {str(e)}")
+        return None
 
 def update_user_kpi(user_id, module, kpi_name, current_value, target_value=None):
-    """Update user KPI across all modules"""
-    company_id = get_current_company().id
-    
-    kpi = UserKPI.query.filter_by(
-        company_id=company_id,
-        user_id=user_id,
-        module=module,
-        kpi_name=kpi_name
-    ).first()
-    
-    if not kpi:
-        kpi = UserKPI(
+    """Update user KPI across all modules with safe DB operations and monthly periodization"""
+    try:
+        # Get current user and company context
+        current_user = User.query.get(user_id)
+        if not current_user:
+            logger.error(f"User {user_id} not found for KPI update")
+            return None
+            
+        company_id = current_user.company_id
+        
+        # Get current month period for periodization
+        current_date = datetime.utcnow()
+        period_key = current_date.strftime('%Y-%m')  # YYYY-MM format
+        
+        # Find existing KPI for current period
+        kpi = UserKPI.query.filter_by(
             company_id=company_id,
             user_id=user_id,
             module=module,
             kpi_name=kpi_name,
-            target_value=target_value or 100.0,
-            current_value=current_value
-        )
-        db.session.add(kpi)
-    else:
-        kpi.current_value = current_value
-        if target_value:
-            kpi.target_value = target_value
-    
-    # Calculate achievement percentage
-    if kpi.target_value and kpi.target_value > 0:
-        kpi.achievement_percentage = (kpi.current_value / kpi.target_value) * 100
-    
-    kpi.last_updated = datetime.utcnow()
-    db.session.commit()
-    
-    # Create vigilance alert if KPI is significantly below target
-    if kpi.achievement_percentage < 70:  # Below 70% of target
-        create_vigilance_alert(
-            company_id=company_id,
-            alert_type='performance',
-            severity='medium',
-            module=module,
-            title=f'KPI Below Target: {kpi_name}',
-            description=f'User {user_id} KPI "{kpi_name}" is at {kpi.achievement_percentage:.1f}% of target',
-            affected_entity_type='user',
-            affected_entity_id=user_id,
-            threshold_value=kpi.target_value,
-            actual_value=kpi.current_value
-        )
+            period=period_key
+        ).first()
+        
+        if not kpi:
+            # Create new KPI for current period
+            kpi = UserKPI(
+                company_id=company_id,
+                user_id=user_id,
+                module=module,
+                kpi_name=kpi_name,
+                period=period_key,
+                target_value=target_value or 100.0,
+                current_value=current_value
+            )
+            db.session.add(kpi)
+            logger.info(f"Created new KPI {kpi_name} for user {user_id} in period {period_key}")
+        else:
+            # Update existing KPI - accumulate for certain types or replace for others
+            if kpi_name.endswith('_count') or kpi_name.endswith('_total'):
+                # Accumulate count/total values
+                kpi.current_value = float(kpi.current_value or 0) + float(current_value)
+            else:
+                # Replace values for averages, percentages, etc.
+                kpi.current_value = current_value
+                
+            if target_value:
+                kpi.target_value = target_value
+            
+            logger.info(f"Updated KPI {kpi_name} for user {user_id}: {kpi.current_value}")
+        
+        # Calculate achievement percentage
+        if kpi.target_value and kpi.target_value > 0:
+            kpi.achievement_percentage = (kpi.current_value / kpi.target_value) * 100
+        else:
+            kpi.achievement_percentage = 0
+        
+        kpi.last_updated = datetime.utcnow()
+        db.session.commit()
+        
+        # Create vigilance alert if KPI is significantly below target
+        if kpi.achievement_percentage < 70 and kpi.target_value > 0:  # Below 70% of target
+            create_vigilance_alert(
+                company_id=company_id,
+                alert_type='performance',
+                severity='medium' if kpi.achievement_percentage >= 50 else 'high',
+                module=module,
+                title=f'KPI Below Target: {kpi_name}',
+                description=f'User {user_id} KPI "{kpi_name}" is at {kpi.achievement_percentage:.1f}% of target in {period_key}',
+                affected_entity_type='user',
+                affected_entity_id=user_id,
+                threshold_value=kpi.target_value,
+                actual_value=kpi.current_value
+            )
+        
+        return kpi
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Failed to update user KPI: {str(e)}")
+        return None
+
+# ============================================================================
+# HEALTH AND MONITORING ROUTES
+# ============================================================================
+
+@app.route('/', methods=['GET'])
+def health_check():
+    """Health endpoint for Digital Ocean App Platform"""
+    try:
+        # Basic health check - test database connection
+        db.session.execute('SELECT 1')
+        
+        return jsonify({
+            'status': 'ok',
+            'env': os.environ.get('FLASK_ENV', 'development'),
+            'timestamp': datetime.utcnow().isoformat(),
+            'database': 'connected'
+        }), 200
+    except Exception as e:
+        logger.error(f"Health check failed: {str(e)}")
+        return jsonify({
+            'status': 'error',
+            'env': os.environ.get('FLASK_ENV', 'development'),
+            'timestamp': datetime.utcnow().isoformat(),
+            'error': 'Database connection failed'
+        }), 503
 
 # ============================================================================
 # AUTHENTICATION ROUTES
@@ -1079,6 +1227,42 @@ def register():
         db.session.rollback()
         logger.error(f"Registration error: {str(e)}")
         return jsonify({'error': 'Registration failed'}), 500
+
+@app.route('/api/auth/profile', methods=['GET'])
+@jwt_required()
+def get_user_profile():
+    """Get current user profile with company context"""
+    try:
+        current_user = get_current_user()
+        if not current_user:
+            return jsonify({'error': 'User not found'}), 404
+        
+        return jsonify({
+            'user': {
+                'id': current_user.id,
+                'username': current_user.username,
+                'email': current_user.email,
+                'first_name': current_user.first_name,
+                'last_name': current_user.last_name,
+                'profile_picture': current_user.profile_picture,
+                'role': current_user.role,
+                'department': current_user.department,
+                'position': current_user.position,
+                'phone': current_user.phone,
+                'last_login': current_user.last_login.isoformat() if current_user.last_login else None,
+                'company': {
+                    'id': current_user.company.id,
+                    'name': current_user.company.name,
+                    'code': current_user.company.code,
+                    'domain': current_user.company.domain,
+                    'logo_url': current_user.company.logo_url
+                } if current_user.company else None
+            }
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Profile error: {str(e)}")
+        return jsonify({'error': 'Failed to load profile'}), 500
 
 # ============================================================================
 # CRM MODULE ROUTES
