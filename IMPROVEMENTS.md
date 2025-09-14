@@ -18,7 +18,8 @@ Based on comprehensive code review and architecture analysis, this document prov
 # tests/conftest.py
 import pytest
 from app import app, db
-from app.models import Company, User
+from app.models.company import Company
+from app.models.user import User
 from werkzeug.security import generate_password_hash
 
 @pytest.fixture(scope='session')
