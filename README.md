@@ -1,6 +1,11 @@
 # Complete ERP System V2.0
 ## Beyond Zoho, SAP, Oracle NetSuite, Microsoft Dynamics, Azure, and Odoo Combined
 
+[![Python CI](https://github.com/Ashour158/ERP_Final/actions/workflows/python-package.yml/badge.svg)](https://github.com/Ashour158/ERP_Final/actions/workflows/python-package.yml)
+[![CodeQL](https://github.com/Ashour158/ERP_Final/actions/workflows/codeql.yml/badge.svg)](https://github.com/Ashour158/ERP_Final/actions/workflows/codeql.yml)
+[![Docker](https://github.com/Ashour158/ERP_Final/actions/workflows/docker.yml/badge.svg)](https://github.com/Ashour158/ERP_Final/actions/workflows/docker.yml)
+[![Security Scan](https://github.com/Ashour158/ERP_Final/actions/workflows/trivy.yml/badge.svg)](https://github.com/Ashour158/ERP_Final/actions/workflows/trivy.yml)
+
 ### 🚀 Revolutionary Enterprise Resource Planning System
 
 This is the most comprehensive ERP system ever built, featuring **14 fully integrated modules** with advanced capabilities that surpass all major ERP platforms combined. Built with modern technologies and designed for Digital Ocean cloud deployment.
@@ -286,6 +291,76 @@ Every module is fully customizable:
 5. **Customize** according to your business needs
 6. **Add users** and configure permissions
 7. **Start** managing your entire business operations
+
+---
+
+## 👨‍💻 Developer Quick Start
+
+### Prerequisites
+- Python 3.10 or 3.11
+- Git
+- Docker (optional)
+
+### Local Development Setup
+
+```bash
+# Clone the repository
+git clone https://github.com/Ashour158/ERP_Final.git
+cd ERP_Final
+
+# Install dependencies
+make install-dev
+
+# Set up pre-commit hooks (optional but recommended)
+make pre-commit-install
+
+# Copy environment template and configure
+cp .env.example .env
+# Edit .env with your settings
+
+# Initialize database
+make init-db
+
+# Run the application
+make run
+```
+
+### Development Commands
+
+```bash
+# Code formatting and linting
+make format          # Format code with black and isort
+make lint           # Run flake8 and bandit security scan
+make format-check   # Check formatting without changes
+
+# Testing
+make test           # Run tests
+make test-cov       # Run tests with coverage report
+
+# Security and validation
+make security       # Run security scans
+make deploy-check   # Check deployment readiness
+make validate       # Run application validation
+
+# Docker
+make docker-build   # Build Docker image
+make docker-run     # Run in Docker container
+
+# Cleanup
+make clean          # Remove cache and temporary files
+```
+
+### CI/CD Pipeline
+
+This repository includes comprehensive CI/CD automation:
+
+- **Python CI**: Code formatting, linting, testing, and security scanning
+- **CodeQL**: Static security analysis
+- **Docker**: Automated container builds and vulnerability scanning
+- **Dependabot**: Automated dependency updates
+- **Pre-commit**: Local quality gates
+
+All workflows run automatically on push and pull requests to main/develop branches.
 
 ---
 
