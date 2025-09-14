@@ -337,6 +337,29 @@ Every module is fully customizable:
 
 ---
 
+## 🏛️ Governance
+
+### **Code Ownership**
+- All code changes are reviewed by designated code owners (see [CODEOWNERS](CODEOWNERS))
+- Global repository ownership ensures consistent code quality and architectural decisions
+
+### **Security**
+- Security vulnerabilities should be reported following our [Security Policy](SECURITY.md)
+- CodeQL static analysis runs weekly to identify potential security issues
+- Regular security audits and dependency updates maintain system integrity
+
+### **Dependency Management**
+- Dependabot automatically monitors and creates pull requests for dependency updates
+- GitHub Actions and Python package updates are managed weekly
+- All dependency update PRs automatically trigger CI checks for validation
+
+### **Contributing**
+- Pull requests require code owner review for approval
+- All CI checks must pass before merging
+- Follow established coding standards and security practices
+
+---
+
 ## 📄 License and Support
 
 This Complete ERP System is designed for business use with full commercial rights. 
