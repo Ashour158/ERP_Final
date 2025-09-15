@@ -2882,5 +2882,37 @@ def community_like_post(post_id):
     if not post:
         return jsonify({'error': 'Post not found'}), 404
     
-    # Check if already like
+    # Toggle like status
+    post.likes_count = post.likes_count + 1 if post.likes_count else 1
+    db.session.commit()
+    
+    return jsonify({'message': 'Post liked successfully', 'likes_count': post.likes_count}), 200
+
+# ============================================================================
+# UI ROUTES - Serve the front-end application
+# ============================================================================
+
+@app.route('/ui')
+@app.route('/ui/')
+@app.route('/ui/<path:filename>')
+def serve_ui(filename=None):
+    """Serve the ERP UI application"""
+    if filename is None or filename == '':
+        return render_template('index.html')
+    
+    # Serve static files
+    if filename.startswith('static/'):
+        return send_from_directory('.', filename)
+    
+    # For SPA routing, serve index.html for unmatched routes
+    return render_template('index.html')
+
+# ============================================================================
+# APPLICATION ENTRY POINT
+# ============================================================================
+
+if __name__ == '__main__':
+    with app.app_context():
+        db.create_all()
+    app.run(debug=True, host='0.0.0.0', port=5000)
 
