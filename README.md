@@ -70,6 +70,100 @@ This is the most comprehensive ERP system ever built, featuring **14 fully integ
 
 ---
 
+## 🔧 API Endpoints
+
+### **Health and Monitoring**
+
+#### GET /
+Basic health check endpoint for Digital Ocean App Platform and load balancers.
+
+**Response:**
+```json
+{
+  "status": "ok",
+  "env": "development",
+  "timestamp": "2025-09-15T19:16:37.794608",
+  "database": "connected"
+}
+```
+
+#### GET /health
+Comprehensive health endpoint for operational visibility and monitoring.
+
+**Response:**
+```json
+{
+  "status": "ok|degraded|error",
+  "database": "up|down",
+  "storage_backend": "local|spaces",
+  "masked_database": "sqlite:///dev_erp.db",
+  "timestamp": "2025-09-15T19:16:37.794608",
+  "environment": "development"
+}
+```
+
+**Status Definitions:**
+- `ok`: All systems operational
+- `degraded`: Database down but system partially functional
+- `error`: Unhandled system error
+
+### **File Upload**
+
+#### POST /upload
+File upload endpoint with pluggable storage backend support.
+
+**Request:**
+- Content-Type: `multipart/form-data`
+- Required field: `file` (the file to upload)
+- Optional field: `path` (subdirectory prefix, default: "")
+
+**Example:**
+```bash
+curl -X POST \
+  -F "file=@document.pdf" \
+  -F "path=documents/contracts" \
+  http://localhost:5000/upload
+```
+
+**Response (Success):**
+```json
+{
+  "status": "ok",
+  "key": "documents/contracts/550e8400-e29b-41d4-a716-446655440000.pdf",
+  "url": "http://localhost:5000/uploads/documents/contracts/550e8400-e29b-41d4-a716-446655440000.pdf",
+  "backend": "local"
+}
+```
+
+**Response (Error):**
+```json
+{
+  "status": "error",
+  "message": "No file provided"
+}
+```
+
+**Storage Backend Configuration:**
+
+The system automatically detects and uses the appropriate storage backend:
+
+**Local Storage (Default):**
+```bash
+UPLOAD_FOLDER=/app/uploads
+UPLOAD_BASE_URL=http://localhost:5000/uploads
+```
+
+**DigitalOcean Spaces:**
+```bash
+SPACES_ENDPOINT_URL=https://nyc3.digitaloceanspaces.com
+SPACES_REGION=nyc3
+SPACES_ACCESS_KEY=your-access-key
+SPACES_SECRET_KEY=your-secret-key
+SPACES_BUCKET_NAME=your-bucket-name
+```
+
+---
+
 ## 🔧 Development & CI/CD Setup
 
 ### **CI/CD Workflows**
