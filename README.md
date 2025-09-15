@@ -1,4 +1,7 @@
 # Complete ERP System V2.0
+
+![Tests](https://github.com/Ashour158/ERP_Final/workflows/Tests/badge.svg)
+
 ## Beyond Zoho, SAP, Oracle NetSuite, Microsoft Dynamics, Azure, and Odoo Combined
 
 ### 🚀 Revolutionary Enterprise Resource Planning System
@@ -161,6 +164,65 @@ SPACES_ACCESS_KEY=your-access-key
 SPACES_SECRET_KEY=your-secret-key
 SPACES_BUCKET_NAME=your-bucket-name
 ```
+
+---
+
+## 🛡️ Operational Hardening
+
+The system includes built-in operational robustness features for production deployments:
+
+### **Upload Size Limits**
+
+- **Environment Variable**: `UPLOAD_MAX_BYTES` (default: 10,485,760 = 10MB)
+- **Configuration**: Automatically applied to Flask's `MAX_CONTENT_LENGTH`
+- **Error Handling**: Returns 413 with JSON response for oversized files
+- **Example Response**:
+  ```json
+  {
+    "status": "error",
+    "message": "File too large. Max 10485760 bytes (10.0MB)"
+  }
+  ```
+
+### **Rate Limiting (In-Process)**
+
+Lightweight sliding-window rate limiting without external dependencies:
+
+#### **Environment Variables**:
+```bash
+# Upload endpoint rate limiting
+RATE_LIMIT_UPLOAD_WINDOW_SECONDS=300     # 5 minutes
+RATE_LIMIT_UPLOAD_MAX_REQUESTS=30        # 30 requests per window
+
+# Health endpoint rate limiting  
+RATE_LIMIT_HEALTH_WINDOW_SECONDS=60      # 1 minute
+RATE_LIMIT_HEALTH_MAX_REQUESTS=120       # 120 requests per window
+```
+
+#### **Features**:
+- **Per-IP tracking** using sliding window algorithm
+- **Thread-safe** with locking for concurrent requests
+- **Rate limit headers** on successful responses:
+  - `X-RateLimit-Limit`: Maximum requests allowed
+  - `X-RateLimit-Remaining`: Requests remaining in current window
+  - `X-RateLimit-Reset`: Epoch timestamp when window resets
+- **429 response** when limit exceeded:
+  ```json
+  {
+    "status": "error", 
+    "message": "Rate limit exceeded. Try again later."
+  }
+  ```
+
+#### **Limitations**:
+- **In-memory only**: Not shared across multiple processes/containers
+- **Recommended**: Use Redis-based rate limiting (e.g., flask-limiter) for production scale
+- **Good for**: Basic protection, single-instance deployments, development
+
+### **Protected Endpoints**:
+- `POST /upload` - File upload rate limiting
+- `GET /` - Health check rate limiting  
+- `GET /health` - Comprehensive health rate limiting
 
 ---
 

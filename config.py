@@ -9,7 +9,8 @@ class Config:
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     
     # File upload settings
-    MAX_CONTENT_LENGTH = 500 * 1024 * 1024  # 500MB max file size
+    UPLOAD_MAX_BYTES = int(os.environ.get('UPLOAD_MAX_BYTES', 10_485_760))  # Default 10MB
+    MAX_CONTENT_LENGTH = UPLOAD_MAX_BYTES
     UPLOAD_FOLDER = os.environ.get('UPLOAD_FOLDER') or 'uploads'
     
     # Email settings
@@ -25,6 +26,12 @@ class Config:
     # Celery settings for background tasks
     CELERY_BROKER_URL = os.environ.get('CELERY_BROKER_URL') or 'redis://localhost:6379/0'
     CELERY_RESULT_BACKEND = os.environ.get('CELERY_RESULT_BACKEND') or 'redis://localhost:6379/0'
+    
+    # Rate limiting settings (in-process)
+    RATE_LIMIT_UPLOAD_WINDOW_SECONDS = int(os.environ.get('RATE_LIMIT_UPLOAD_WINDOW_SECONDS', 300))  # 5 minutes
+    RATE_LIMIT_UPLOAD_MAX_REQUESTS = int(os.environ.get('RATE_LIMIT_UPLOAD_MAX_REQUESTS', 30))  # 30 requests per window
+    RATE_LIMIT_HEALTH_WINDOW_SECONDS = int(os.environ.get('RATE_LIMIT_HEALTH_WINDOW_SECONDS', 60))  # 1 minute
+    RATE_LIMIT_HEALTH_MAX_REQUESTS = int(os.environ.get('RATE_LIMIT_HEALTH_MAX_REQUESTS', 120))  # 120 requests per window
 
 class DevelopmentConfig(Config):
     """Development configuration"""

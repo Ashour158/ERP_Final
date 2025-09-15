@@ -11,12 +11,16 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_jwt_extended import JWTManager, jwt_required, create_access_token, get_jwt_identity
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
+from werkzeug.exceptions import RequestEntityTooLarge
 from datetime import datetime, timedelta
 import os
 import json
 import uuid
 from functools import wraps
 import logging
+import time
+import threading
+from collections import deque
 from config import config
 from storage import create_storage_backend, generate_safe_key, SpacesStorageBackend
 from db_utils import mask_db_uri, is_valid_prod_db_url
@@ -40,8 +44,12 @@ env = os.environ.get('FLASK_ENV', 'development')
 config_class = config.get(env, config['default'])
 app.config.from_object(config_class)
 
+# Ensure Flask respects the upload size limit
+app.config['MAX_CONTENT_LENGTH'] = app.config.get('UPLOAD_MAX_BYTES', 10_485_760)
+
 print(f"Loaded configuration for environment: {env}")
 print(f"Database URI: {app.config.get('SQLALCHEMY_DATABASE_URI', 'Not set')}")
+print(f"Upload max size: {app.config['MAX_CONTENT_LENGTH']} bytes")
 
 # Initialize extensions
 db = SQLAlchemy(app)
@@ -58,6 +66,70 @@ print(f"CORS origins: {cors_origins}")
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# ============================================================================
+# RATE LIMITING INFRASTRUCTURE (IN-PROCESS)
+# ============================================================================
+
+# Thread-safe storage for rate limiting
+rate_limit_lock = threading.Lock()
+upload_hits = {}  # ip -> deque[timestamps] 
+health_hits = {}  # ip -> deque[timestamps]
+
+def get_client_ip():
+    """Get client IP address from request"""
+    if request.headers.get('X-Forwarded-For'):
+        return request.headers.get('X-Forwarded-For').split(',')[0].strip()
+    elif request.headers.get('X-Real-IP'):
+        return request.headers.get('X-Real-IP')
+    else:
+        return request.remote_addr or 'unknown'
+
+def check_rate_limit(endpoint_type):
+    """Check rate limit for endpoint_type ('upload' or 'health')"""
+    client_ip = get_client_ip()
+    current_time = time.time()
+    
+    if endpoint_type == 'upload':
+        window_seconds = app.config['RATE_LIMIT_UPLOAD_WINDOW_SECONDS']
+        max_requests = app.config['RATE_LIMIT_UPLOAD_MAX_REQUESTS']
+        hits_dict = upload_hits
+    else:  # health
+        window_seconds = app.config['RATE_LIMIT_HEALTH_WINDOW_SECONDS']
+        max_requests = app.config['RATE_LIMIT_HEALTH_MAX_REQUESTS']
+        hits_dict = health_hits
+    
+    with rate_limit_lock:
+        # Initialize or get existing deque for this IP
+        if client_ip not in hits_dict:
+            hits_dict[client_ip] = deque()
+        
+        ip_hits = hits_dict[client_ip]
+        
+        # Remove old entries outside the time window
+        window_start = current_time - window_seconds
+        while ip_hits and ip_hits[0] < window_start:
+            ip_hits.popleft()
+        
+        # Check if limit is exceeded
+        if len(ip_hits) >= max_requests:
+            # Calculate reset time
+            reset_time = int(ip_hits[0] + window_seconds)
+            return False, len(ip_hits), max_requests, reset_time
+        
+        # Add current request
+        ip_hits.append(current_time)
+        remaining = max_requests - len(ip_hits)
+        reset_time = int(current_time + window_seconds)
+        
+        return True, remaining, max_requests, reset_time
+
+def add_rate_limit_headers(response, remaining, limit, reset_time):
+    """Add rate limit headers to response"""
+    response.headers['X-RateLimit-Limit'] = str(limit)
+    response.headers['X-RateLimit-Remaining'] = str(remaining)
+    response.headers['X-RateLimit-Reset'] = str(reset_time)
+    return response
 
 # ============================================================================
 # DATABASE MODELS - ALL 14 MODULES
@@ -1112,35 +1184,68 @@ def update_user_kpi(user_id, module, kpi_name, current_value, target_value=None)
         return None
 
 # ============================================================================
+# ERROR HANDLERS
+# ============================================================================
+
+@app.errorhandler(RequestEntityTooLarge)
+def handle_file_too_large(error):
+    """Handle file too large error (413)"""
+    max_size_mb = app.config['UPLOAD_MAX_BYTES'] / (1024 * 1024)
+    return jsonify({
+        'status': 'error',
+        'message': f'File too large. Max {app.config["UPLOAD_MAX_BYTES"]} bytes ({max_size_mb:.1f}MB)'
+    }), 413
+
+# ============================================================================
 # HEALTH AND MONITORING ROUTES
 # ============================================================================
 
 @app.route('/', methods=['GET'])
 def health_check():
     """Health endpoint for Digital Ocean App Platform"""
+    # Check rate limit first
+    allowed, remaining, limit, reset_time = check_rate_limit('health')
+    if not allowed:
+        return jsonify({
+            'status': 'error',
+            'message': 'Rate limit exceeded. Try again later.'
+        }), 429
+    
     try:
         # Basic health check - test database connection
         from sqlalchemy import text
         db.session.execute(text('SELECT 1'))
         
-        return jsonify({
+        response = jsonify({
             'status': 'ok',
             'env': os.environ.get('FLASK_ENV', 'development'),
             'timestamp': datetime.utcnow().isoformat(),
             'database': 'connected'
-        }), 200
+        })
+        response.status_code = 200
+        return add_rate_limit_headers(response, remaining, limit, reset_time)
     except Exception as e:
         logger.error(f"Health check failed: {str(e)}")
-        return jsonify({
+        response = jsonify({
             'status': 'error',
             'env': os.environ.get('FLASK_ENV', 'development'),
             'timestamp': datetime.utcnow().isoformat(),
             'error': 'Database connection failed'
-        }), 503
+        })
+        response.status_code = 503
+        return add_rate_limit_headers(response, remaining, limit, reset_time)
 
 @app.route('/health', methods=['GET'])
 def health_endpoint():
     """Comprehensive health endpoint for operational visibility"""
+    # Check rate limit first
+    allowed, remaining, limit, reset_time = check_rate_limit('health')
+    if not allowed:
+        return jsonify({
+            'status': 'error',
+            'message': 'Rate limit exceeded. Try again later.'
+        }), 429
+    
     try:
         # Test database connection
         database_status = 'down'
@@ -1164,29 +1269,41 @@ def health_endpoint():
         else:
             overall_status = 'degraded'
         
-        return jsonify({
+        response = jsonify({
             'status': overall_status,
             'database': database_status,
             'storage_backend': storage_backend,
             'masked_database': masked_database,
             'timestamp': datetime.utcnow().isoformat(),
             'environment': os.environ.get('FLASK_ENV', 'development')
-        }), 200
+        })
+        response.status_code = 200
+        return add_rate_limit_headers(response, remaining, limit, reset_time)
         
     except Exception as e:
         logger.error(f"Health endpoint error: {str(e)}")
-        return jsonify({
+        response = jsonify({
             'status': 'error',
             'database': 'unknown',
             'storage_backend': 'unknown',
             'masked_database': 'unknown',
             'error': str(e),
             'timestamp': datetime.utcnow().isoformat()
-        }), 200  # Return 200 to avoid cascading failures
+        })
+        response.status_code = 200  # Return 200 to avoid cascading failures
+        return add_rate_limit_headers(response, remaining, limit, reset_time)
 
 @app.route('/upload', methods=['POST'])
 def upload_file():
     """File upload endpoint using pluggable storage backend"""
+    # Check rate limit first
+    allowed, remaining, limit, reset_time = check_rate_limit('upload')
+    if not allowed:
+        return jsonify({
+            'status': 'error',
+            'message': 'Rate limit exceeded. Try again later.'
+        }), 429
+    
     try:
         # Check if file is present in request
         if 'file' not in request.files:
@@ -1228,13 +1345,18 @@ def upload_file():
         
         logger.info(f"File uploaded successfully: {final_key} via {backend_name}")
         
-        return jsonify({
+        response = jsonify({
             'status': 'ok',
             'key': final_key,
             'url': file_url,
             'backend': backend_name
-        }), 200
+        })
+        response.status_code = 200
+        return add_rate_limit_headers(response, remaining, limit, reset_time)
         
+    except RequestEntityTooLarge:
+        # Let the 413 error bubble up to the error handler
+        raise
     except Exception as e:
         logger.error(f"File upload error: {str(e)}")
         return jsonify({
