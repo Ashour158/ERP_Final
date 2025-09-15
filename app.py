@@ -1184,6 +1184,11 @@ def health_endpoint():
             'timestamp': datetime.utcnow().isoformat()
         }), 200  # Return 200 to avoid cascading failures
 
+@app.route('/ui')
+def ui():
+    """Serve the ERP UI frontend"""
+    return render_template('index.html')
+
 @app.route('/upload', methods=['POST'])
 def upload_file():
     """File upload endpoint using pluggable storage backend"""

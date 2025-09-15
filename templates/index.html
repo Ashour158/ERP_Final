@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ERP System - Complete Business Management</title>
+    <link rel="stylesheet" href="/static/css/styles.css">
+</head>
+<body>
+    <div class="app-container">
+        <header class="app-header">
+            <h1>ERP System</h1>
+            <div class="header-controls">
+                <span id="user-info" class="user-info" style="display: none;"></span>
+                <button id="logout-btn" class="btn btn-secondary" style="display: none;">Logout</button>
+            </div>
+        </header>
+
+        <!-- Settings & Health Section -->
+        <section class="settings-section">
+            <h2>System Settings</h2>
+            <div class="settings-content">
+                <div class="setting-item">
+                    <label>Base URL:</label>
+                    <span id="base-url" class="base-url"></span>
+                </div>
+                <button id="health-check-btn" class="btn btn-primary">Health Check</button>
+            </div>
+        </section>
+
+        <!-- Authentication Section -->
+        <section id="auth-section" class="auth-section">
+            <h2>Login</h2>
+            <form id="login-form" class="login-form">
+                <div class="form-group">
+                    <label for="username">Username:</label>
+                    <input type="text" id="username" name="username" required>
+                </div>
+                <div class="form-group">
+                    <label for="password">Password:</label>
+                    <input type="password" id="password" name="password" required>
+                </div>
+                <button type="submit" class="btn btn-primary">Login</button>
+            </form>
+        </section>
+
+        <!-- Profile Section -->
+        <section id="profile-section" class="profile-section" style="display: none;">
+            <h2>User Profile</h2>
+            <button id="profile-btn" class="btn btn-info">Get Profile</button>
+            <div id="profile-data" class="profile-data"></div>
+        </section>
+
+        <!-- ERP Modules -->
+        <div id="modules-container" class="modules-container" style="display: none;">
+            
+            <!-- CRM Module -->
+            <section class="module-section">
+                <h2>CRM (Customer Relationship Management)</h2>
+                <div class="module-actions">
+                    <div class="action-group">
+                        <h3>Customers</h3>
+                        <button class="btn btn-primary" onclick="listCustomers()">List Customers</button>
+                        <button class="btn btn-success" onclick="showCreateCustomerForm()">Create Customer</button>
+                    </div>
+                    <div class="action-group">
+                        <h3>Deals</h3>
+                        <button class="btn btn-primary" onclick="listDeals()">List Deals</button>
+                        <button class="btn btn-success" onclick="showCreateDealForm()">Create Deal</button>
+                    </div>
+                    <div class="action-group">
+                        <h3>Quotes</h3>
+                        <button class="btn btn-primary" onclick="listQuotes()">List Quotes</button>
+                        <button class="btn btn-success" onclick="showCreateQuoteForm()">Create Quote</button>
+                    </div>
+                    <div class="action-group">
+                        <h3>Sales Rep Check-in</h3>
+                        <button class="btn btn-warning" onclick="showSalesCheckinForm()">Sales Check-in</button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Finance Module -->
+            <section class="module-section">
+                <h2>Finance</h2>
+                <div class="module-actions">
+                    <div class="action-group">
+                        <h3>Invoices</h3>
+                        <button class="btn btn-primary" onclick="listInvoices()">List Invoices</button>
+                        <button class="btn btn-success" onclick="showCreateInvoiceForm()">Create Invoice</button>
+                    </div>
+                    <div class="action-group">
+                        <h3>Vendor Payments</h3>
+                        <button class="btn btn-primary" onclick="listVendorPayments()">List Vendor Payments</button>
+                        <button class="btn btn-info" onclick="processVendorPaymentSummary()">Process Payment Summary</button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- HR Module -->
+            <section class="module-section">
+                <h2>HR (Human Resources)</h2>
+                <div class="module-actions">
+                    <div class="action-group">
+                        <h3>Employees</h3>
+                        <button class="btn btn-primary" onclick="listEmployees()">List Employees</button>
+                        <button class="btn btn-success" onclick="showCreateEmployeeForm()">Create Employee</button>
+                    </div>
+                    <div class="action-group">
+                        <h3>Attendance</h3>
+                        <button class="btn btn-warning" onclick="attendanceCheckin()">Check-in</button>
+                        <button class="btn btn-secondary" onclick="attendanceCheckout()">Check-out</button>
+                    </div>
+                    <div class="action-group">
+                        <h3>Leave Requests</h3>
+                        <button class="btn btn-primary" onclick="listLeaveRequests()">List Leave Requests</button>
+                        <button class="btn btn-success" onclick="showCreateLeaveRequestForm()">Create Leave Request</button>
+                    </div>
+                    <div class="action-group">
+                        <h3>Training Programs</h3>
+                        <button class="btn btn-primary" onclick="listTrainingPrograms()">List Training Programs</button>
+                        <button class="btn btn-success" onclick="showCreateTrainingProgramForm()">Create Training Program</button>
+                    </div>
+                    <div class="action-group">
+                        <h3>Payroll</h3>
+                        <button class="btn btn-primary" onclick="listPayroll()">List Payroll</button>
+                        <button class="btn btn-success" onclick="showCreatePayrollForm()">Create Payroll</button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Supply Chain Module -->
+            <section class="module-section">
+                <h2>Supply Chain</h2>
+                <div class="module-actions">
+                    <div class="action-group">
+                        <h3>Inventory</h3>
+                        <button class="btn btn-primary" onclick="listInventory()">List Inventory</button>
+                        <button class="btn btn-success" onclick="showCreateInventoryForm()">Create Inventory Item</button>
+                    </div>
+                    <div class="action-group">
+                        <h3>Purchase Orders</h3>
+                        <button class="btn btn-primary" onclick="listPurchaseOrders()">List Purchase Orders</button>
+                        <button class="btn btn-success" onclick="showCreatePurchaseOrderForm()">Create Purchase Order</button>
+                    </div>
+                    <div class="action-group">
+                        <h3>Courier Shipments</h3>
+                        <button class="btn btn-primary" onclick="listCourierShipments()">List Courier Shipments</button>
+                        <button class="btn btn-success" onclick="showCreateCourierShipmentForm()">Create Courier Shipment</button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Desk Module -->
+            <section class="module-section">
+                <h2>Desk (Service Management)</h2>
+                <div class="module-actions">
+                    <div class="action-group">
+                        <h3>Tickets</h3>
+                        <button class="btn btn-primary" onclick="listTickets()">List Tickets</button>
+                        <button class="btn btn-success" onclick="showCreateTicketForm()">Create Ticket</button>
+                    </div>
+                    <div class="action-group">
+                        <h3>Work Orders</h3>
+                        <button class="btn btn-primary" onclick="listWorkOrders()">List Work Orders</button>
+                        <button class="btn btn-success" onclick="showCreateWorkOrderForm()">Create Work Order</button>
+                        <button class="btn btn-warning" onclick="showWorkOrderCheckinForm()">Work Order Check-in</button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Vendors Module -->
+            <section class="module-section">
+                <h2>Vendors</h2>
+                <div class="module-actions">
+                    <div class="action-group">
+                        <h3>Vendors</h3>
+                        <button class="btn btn-primary" onclick="listVendors()">List Vendors</button>
+                        <button class="btn btn-success" onclick="showCreateVendorForm()">Create Vendor</button>
+                    </div>
+                    <div class="action-group">
+                        <h3>Vendor Performance</h3>
+                        <button class="btn btn-info" onclick="showGetVendorPerformanceForm()">Get Vendor Performance</button>
+                        <button class="btn btn-warning" onclick="showUpdateVendorPerformanceForm()">Update Vendor Performance</button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Marketing Module -->
+            <section class="module-section">
+                <h2>Marketing</h2>
+                <div class="module-actions">
+                    <div class="action-group">
+                        <h3>Campaigns</h3>
+                        <button class="btn btn-primary" onclick="listCampaigns()">List Campaigns</button>
+                        <button class="btn btn-success" onclick="showCreateCampaignForm()">Create Campaign</button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Surveys Module -->
+            <section class="module-section">
+                <h2>Surveys</h2>
+                <div class="module-actions">
+                    <div class="action-group">
+                        <h3>Surveys</h3>
+                        <button class="btn btn-primary" onclick="listSurveys()">List Surveys</button>
+                        <button class="btn btn-success" onclick="showCreateSurveyForm()">Create Survey</button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Community Module -->
+            <section class="module-section">
+                <h2>Community</h2>
+                <div class="module-actions">
+                    <div class="action-group">
+                        <h3>Posts</h3>
+                        <button class="btn btn-primary" onclick="listPosts()">List Posts</button>
+                        <button class="btn btn-success" onclick="showCreatePostForm()">Create Post</button>
+                    </div>
+                </div>
+            </section>
+        </div>
+
+        <!-- Output Area -->
+        <section class="output-section">
+            <h2>API Response Output</h2>
+            <div id="output-area" class="output-area">
+                <p>API responses and errors will appear here...</p>
+            </div>
+            <button id="clear-output-btn" class="btn btn-secondary">Clear Output</button>
+        </section>
+
+        <!-- Dynamic Forms Container -->
+        <div id="dynamic-forms" class="dynamic-forms"></div>
+    </div>
+
+    <script src="/static/js/app.js"></script>
+</body>
+</html>
