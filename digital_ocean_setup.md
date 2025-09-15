@@ -52,6 +52,25 @@ services:
     value: your-secret-key-change-in-production
   - key: JWT_SECRET_KEY
     value: your-jwt-secret-key-change-in-production
+
+# Celery Worker Component for Background Tasks
+workers:
+- name: celery-worker
+  source_dir: /
+  github:
+    repo: your-username/complete-erp-system
+    branch: main
+  run_command: celery -A app.celery worker --loglevel=info
+  environment_slug: python
+  instance_count: 1
+  instance_size_slug: basic-xxs
+  envs:
+  - key: FLASK_ENV
+    value: production
+  - key: SECRET_KEY
+    value: your-secret-key-change-in-production
+  - key: JWT_SECRET_KEY
+    value: your-jwt-secret-key-change-in-production
 ```
 
 #### **Step 4: Add Database**
@@ -78,9 +97,54 @@ MAIL_SERVER=smtp.your-provider.com
 MAIL_USERNAME=your-email@domain.com
 MAIL_PASSWORD=your-email-password
 CORS_ORIGINS=https://your-app-name.ondigitalocean.app
+
+# DigitalOcean Spaces Storage (Optional)
+DO_SPACES_KEY=your-spaces-access-key
+DO_SPACES_SECRET=your-spaces-secret-key
+DO_SPACES_BUCKET=your-bucket-name
+DO_SPACES_REGION=nyc3
 ```
 
-#### **Step 6: Deploy**
+#### **Step 6: Background Tasks with Celery Worker (Optional)**
+
+The ERP system includes Celery worker support for background tasks. The worker component is already included in the App Spec above.
+
+**Benefits of Celery Worker:**
+- Asynchronous email sending
+- Background report generation
+- Automated data processing
+- Scheduled maintenance tasks
+
+**Configuration:**
+1. **Redis** is required for Celery (set REDIS_URL environment variable)
+2. **Worker automatically starts** with the web service deployment
+3. **Scales independently** from web service
+4. **Logs available** in App Platform dashboard
+
+**Monitoring Worker Health:**
+```bash
+# Check worker status via app logs
+celery -A app.celery inspect active
+celery -A app.celery inspect stats
+```
+
+#### **Step 7: File Storage with DigitalOcean Spaces (Optional)**
+
+The ERP system supports pluggable storage backends. By default, it uses local file storage, but you can configure DigitalOcean Spaces for cloud storage.
+
+**To Enable DigitalOcean Spaces:**
+1. **Create Spaces bucket** in DO console
+2. **Generate API keys** (Spaces access key/secret)
+3. **Set environment variables** (see Step 5 above)
+4. **Storage automatically switches** to Spaces when credentials are detected
+
+**Storage Backend Features:**
+- Automatic backend detection based on environment variables
+- Local filesystem fallback when Spaces not configured
+- Secure file uploads with conflict resolution
+- Public URL generation for file access
+
+#### **Step 8: Deploy**
 
 1. **Click** "Create Resources"
 2. **Wait** for deployment (5-10 minutes)
