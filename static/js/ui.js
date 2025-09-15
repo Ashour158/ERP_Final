@@ -604,6 +604,9 @@ class ERPApp {
         try {
             const response = await this.apiCall('/api/crm/customers');
             
+            // Handle pagination response format
+            const customers = response.customers || response;
+            
             contentArea.innerHTML = `
                 <div class="mb-6 flex items-center justify-between">
                     <div>
@@ -617,7 +620,7 @@ class ERPApp {
                 
                 <div class="card">
                     <div class="card-body">
-                        ${this.renderDataTable(response, [
+                        ${this.renderDataTable(customers, [
                             { key: 'name', label: 'Name' },
                             { key: 'email', label: 'Email' },
                             { key: 'phone', label: 'Phone' },
