@@ -9,7 +9,8 @@ class Config:
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     
     # File upload settings
-    MAX_CONTENT_LENGTH = 500 * 1024 * 1024  # 500MB max file size
+    UPLOAD_MAX_BYTES = int(os.environ.get('UPLOAD_MAX_BYTES', 10 * 1024 * 1024))  # Default 10MB
+    MAX_CONTENT_LENGTH = UPLOAD_MAX_BYTES  # Use configurable limit
     UPLOAD_FOLDER = os.environ.get('UPLOAD_FOLDER') or 'uploads'
     
     # Email settings

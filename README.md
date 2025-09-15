@@ -1,4 +1,7 @@
 # Complete ERP System V2.0
+
+[![Backend CI](https://github.com/Ashour158/ERP_Final/actions/workflows/backend-ci.yml/badge.svg)](https://github.com/Ashour158/ERP_Final/actions/workflows/backend-ci.yml)
+
 ## Beyond Zoho, SAP, Oracle NetSuite, Microsoft Dynamics, Azure, and Odoo Combined
 
 ### 🚀 Revolutionary Enterprise Resource Planning System
@@ -386,6 +389,23 @@ Every module is fully customizable:
 
 ---
 
+## 🛡️ Operational Hardening
+
+### **Upload Security & Rate Limiting**
+- **Configurable Upload Limits**: UPLOAD_MAX_BYTES environment variable (default: 10MB)
+- **Rate Limiting**: In-memory rate limiting for critical endpoints:
+  - `/upload`: 10 requests per minute per IP
+  - `/health`: 30 requests per minute per IP
+- **Rate Limit Headers**: X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset
+- **File Validation**: Secure filename sanitization and type validation
+
+### **Health Monitoring**
+- **Comprehensive Health Checks**: Database connectivity, storage backend status
+- **Operational Visibility**: Masked database URIs, environment information
+- **Graceful Degradation**: Service continues operating during database outages
+
+---
+
 ## 📊 Performance and Scalability
 
 - **Microservices architecture** for horizontal scaling
@@ -533,6 +553,12 @@ This Complete ERP System is designed for business use with full commercial right
 - Video tutorials for setup and usage
 - Community support and forums
 - Professional support available
+
+---
+
+## 📊 Release Notes
+
+For detailed information about changes, improvements, and new features, see our [CHANGELOG.md](CHANGELOG.md).
 
 ---
 

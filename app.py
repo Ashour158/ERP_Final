@@ -5,7 +5,7 @@ Beyond Zoho, SAP, Oracle NetSuite, Microsoft Dynamics, Azure, and Odoo Combined
 Version 2.0 - All 14 Modules with Full Integration
 """
 
-from flask import Flask, request, jsonify, render_template, send_from_directory
+from flask import Flask, request, jsonify, render_template, send_from_directory, make_response
 from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
 from flask_jwt_extended import JWTManager, jwt_required, create_access_token, get_jwt_identity
@@ -17,6 +17,8 @@ import json
 import uuid
 from functools import wraps
 import logging
+import time
+from collections import defaultdict
 from config import config
 from storage import create_storage_backend, generate_safe_key, SpacesStorageBackend
 from db_utils import mask_db_uri, is_valid_prod_db_url
@@ -58,6 +60,82 @@ print(f"CORS origins: {cors_origins}")
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# ============================================================================
+# RATE LIMITING IMPLEMENTATION
+# ============================================================================
+
+# In-memory rate limiting storage
+rate_limit_storage = defaultdict(list)
+
+def rate_limit(requests_per_minute=60):
+    """
+    Simple in-memory rate limiting decorator
+    Args:
+        requests_per_minute: Number of requests allowed per minute per IP
+    """
+    def decorator(f):
+        @wraps(f)
+        def decorated_function(*args, **kwargs):
+            # Get client IP address
+            client_ip = request.headers.get('X-Forwarded-For', request.remote_addr)
+            if client_ip and ',' in client_ip:
+                client_ip = client_ip.split(',')[0].strip()
+            
+            current_time = time.time()
+            window_start = current_time - 60  # 1 minute window
+            
+            # Clean old requests
+            rate_limit_storage[client_ip] = [
+                req_time for req_time in rate_limit_storage[client_ip] 
+                if req_time > window_start
+            ]
+            
+            # Check if limit exceeded
+            if len(rate_limit_storage[client_ip]) >= requests_per_minute:
+                response = jsonify({
+                    'status': 'error',
+                    'message': 'Rate limit exceeded'
+                })
+                response.status_code = 429
+                response.headers['X-RateLimit-Limit'] = str(requests_per_minute)
+                response.headers['X-RateLimit-Remaining'] = '0'
+                response.headers['X-RateLimit-Reset'] = str(int(current_time + 60))
+                return response
+            
+            # Add current request
+            rate_limit_storage[client_ip].append(current_time)
+            
+            # Call the original function
+            result = f(*args, **kwargs)
+            
+            # Handle different response types
+            if isinstance(result, tuple) and len(result) == 2:
+                # Handle (response_data, status_code) tuples
+                response_obj, status_code = result
+                if hasattr(response_obj, 'headers'):
+                    response = response_obj
+                    # Preserve the original status code
+                    if hasattr(response, 'status_code'):
+                        response.status_code = status_code
+                else:
+                    response = make_response(response_obj, status_code)
+            elif hasattr(result, 'headers'):
+                # Handle Response objects
+                response = result
+            else:
+                # Handle other types - convert to response
+                response = make_response(result)
+            
+            # Add rate limit headers to all responses
+            remaining = requests_per_minute - len(rate_limit_storage[client_ip])
+            response.headers['X-RateLimit-Limit'] = str(requests_per_minute)
+            response.headers['X-RateLimit-Remaining'] = str(remaining)
+            response.headers['X-RateLimit-Reset'] = str(int(current_time + 60))
+            
+            return response
+        return decorated_function
+    return decorator
 
 # ============================================================================
 # DATABASE MODELS - ALL 14 MODULES
@@ -1139,6 +1217,7 @@ def health_check():
         }), 503
 
 @app.route('/health', methods=['GET'])
+@rate_limit(requests_per_minute=30)  # Allow 30 requests per minute for health checks
 def health_endpoint():
     """Comprehensive health endpoint for operational visibility"""
     try:
@@ -1185,6 +1264,7 @@ def health_endpoint():
         }), 200  # Return 200 to avoid cascading failures
 
 @app.route('/upload', methods=['POST'])
+@rate_limit(requests_per_minute=10)  # Allow 10 uploads per minute
 def upload_file():
     """File upload endpoint using pluggable storage backend"""
     try:
