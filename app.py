@@ -10,6 +10,7 @@ from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
 from flask_jwt_extended import JWTManager, jwt_required, create_access_token, get_jwt_identity
 from werkzeug.security import generate_password_hash, check_password_hash
+from werkzeug.utils import secure_filename
 from datetime import datetime, timedelta
 import os
 import json
@@ -17,6 +18,8 @@ import uuid
 from functools import wraps
 import logging
 from config import config
+from storage import create_storage_backend, generate_safe_key, SpacesStorageBackend
+from db_utils import mask_db_uri, is_valid_prod_db_url
 
 # Load environment variables from .env file if it exists
 try:
@@ -43,6 +46,9 @@ print(f"Database URI: {app.config.get('SQLALCHEMY_DATABASE_URI', 'Not set')}")
 # Initialize extensions
 db = SQLAlchemy(app)
 jwt = JWTManager(app)
+
+# Initialize storage backend
+storage = create_storage_backend()
 
 # Initialize CORS with origins from config (use dict access to respect config values)
 cors_origins = app.config.get('CORS_ORIGINS', ["*"])
@@ -1131,6 +1137,110 @@ def health_check():
             'timestamp': datetime.utcnow().isoformat(),
             'error': 'Database connection failed'
         }), 503
+
+@app.route('/health', methods=['GET'])
+def health_endpoint():
+    """Comprehensive health endpoint for operational visibility"""
+    try:
+        # Test database connection
+        database_status = 'down'
+        try:
+            from sqlalchemy import text
+            db.session.execute(text('SELECT 1'))
+            database_status = 'up'
+        except Exception as db_error:
+            logger.warning(f"Database health check failed: {str(db_error)}")
+        
+        # Get storage backend type
+        storage_backend = "spaces" if isinstance(storage, SpacesStorageBackend) else "local"
+        
+        # Get masked database URL
+        database_uri = app.config.get('SQLALCHEMY_DATABASE_URI', '')
+        masked_database = mask_db_uri(database_uri)
+        
+        # Determine overall status
+        if database_status == 'up':
+            overall_status = 'ok'
+        else:
+            overall_status = 'degraded'
+        
+        return jsonify({
+            'status': overall_status,
+            'database': database_status,
+            'storage_backend': storage_backend,
+            'masked_database': masked_database,
+            'timestamp': datetime.utcnow().isoformat(),
+            'environment': os.environ.get('FLASK_ENV', 'development')
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Health endpoint error: {str(e)}")
+        return jsonify({
+            'status': 'error',
+            'database': 'unknown',
+            'storage_backend': 'unknown',
+            'masked_database': 'unknown',
+            'error': str(e),
+            'timestamp': datetime.utcnow().isoformat()
+        }), 200  # Return 200 to avoid cascading failures
+
+@app.route('/upload', methods=['POST'])
+def upload_file():
+    """File upload endpoint using pluggable storage backend"""
+    try:
+        # Check if file is present in request
+        if 'file' not in request.files:
+            return jsonify({
+                'status': 'error',
+                'message': 'No file provided'
+            }), 400
+        
+        file = request.files['file']
+        
+        # Check if file was selected
+        if file.filename == '':
+            return jsonify({
+                'status': 'error',
+                'message': 'No file selected'
+            }), 400
+        
+        # Get optional path prefix
+        path_prefix = request.form.get('path', '').strip()
+        
+        # Generate safe key for storage
+        safe_filename = secure_filename(file.filename)
+        if not safe_filename:
+            return jsonify({
+                'status': 'error',
+                'message': 'Invalid filename'
+            }), 400
+        
+        storage_key = generate_safe_key(safe_filename, path_prefix)
+        
+        # Save file using storage backend
+        final_key = storage.save_file(file.stream, storage_key)
+        
+        # Get public URL
+        file_url = storage.url_for_key(final_key)
+        
+        # Determine backend name
+        backend_name = "spaces" if isinstance(storage, SpacesStorageBackend) else "local"
+        
+        logger.info(f"File uploaded successfully: {final_key} via {backend_name}")
+        
+        return jsonify({
+            'status': 'ok',
+            'key': final_key,
+            'url': file_url,
+            'backend': backend_name
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"File upload error: {str(e)}")
+        return jsonify({
+            'status': 'error',
+            'message': f'Upload failed: {str(e)}'
+        }), 500
 
 # ============================================================================
 # AUTHENTICATION ROUTES
