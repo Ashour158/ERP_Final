@@ -183,6 +183,12 @@ class ERPApp {
             password: formData.get('password')
         };
 
+        // Clear any previous errors
+        const errorElement = document.getElementById('login-error');
+        if (errorElement) {
+            errorElement.classList.add('hidden');
+        }
+
         try {
             this.showLoading();
             
@@ -198,16 +204,18 @@ class ERPApp {
                 localStorage.setItem('erp_auth_token', this.authToken);
                 localStorage.setItem('erp_current_user', JSON.stringify(this.currentUser));
                 
+                console.log('Login successful, showing main app');
                 this.showMainApp();
                 this.setupEventListeners();
                 this.loadDashboard();
                 this.showToast('Welcome back!', 'success');
             } else {
+                console.error('Login response missing access_token:', response);
                 this.showLoginError('Invalid credentials');
             }
         } catch (error) {
             console.error('Login error:', error);
-            this.showLoginError('Login failed. Please try again.');
+            this.showLoginError(error.message || 'Login failed. Please try again.');
         } finally {
             this.hideLoading();
         }
@@ -924,24 +932,46 @@ class ERPApp {
     async apiCall(endpoint, options = {}) {
         const config = {
             headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${this.authToken}`
+                'Content-Type': 'application/json'
             },
             ...options
         };
 
-        const response = await fetch(`${this.API_BASE}${endpoint}`, config);
-        
-        if (!response.ok) {
-            if (response.status === 401) {
-                // Token expired, redirect to login
-                this.logout();
-                throw new Error('Authentication expired');
-            }
-            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        // Add auth header if token exists
+        if (this.authToken) {
+            config.headers['Authorization'] = `Bearer ${this.authToken}`;
         }
 
-        return response.json();
+        try {
+            const response = await fetch(`${this.API_BASE}${endpoint}`, config);
+            
+            if (!response.ok) {
+                if (response.status === 401) {
+                    // Token expired, redirect to login
+                    console.log('Authentication expired, redirecting to login');
+                    this.logout();
+                    throw new Error('Authentication expired');
+                }
+                
+                // Try to get error message from response
+                let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+                try {
+                    const errorData = await response.json();
+                    if (errorData.error || errorData.message) {
+                        errorMessage = errorData.error || errorData.message;
+                    }
+                } catch (e) {
+                    // Ignore JSON parse errors
+                }
+                
+                throw new Error(errorMessage);
+            }
+
+            return response.json();
+        } catch (error) {
+            console.error('API call failed:', error);
+            throw error;
+        }
     }
 }
 

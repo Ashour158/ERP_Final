@@ -19,13 +19,52 @@
     <!-- Styles -->
     <link rel="stylesheet" href="/static/css/ui.css">
     
-    <!-- Fonts -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Fonts - with fallback -->
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        /* Fallback font stack if Google Fonts fails */
+        body { font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; }
+        
+        /* Basic Font Awesome fallbacks */
+        .fas, .fa { font-family: 'Font Awesome 6 Free', sans-serif; font-weight: 900; }
+        .fa-building::before { content: '🏢'; }
+        .fa-bars::before { content: '☰'; }
+        .fa-search::before { content: '🔍'; }
+        .fa-bell::before { content: '🔔'; }
+        .fa-plus::before { content: '+'; }
+        .fa-user::before { content: '👤'; }
+        .fa-chevron-down::before { content: '▼'; }
+        .fa-chevron-right::before { content: '▶'; }
+        .fa-chart-pie::before { content: '📊'; }
+        .fa-users::before { content: '👥'; }
+        .fa-dollar-sign::before { content: '$'; }
+        .fa-user-tie::before { content: '👔'; }
+        .fa-truck::before { content: '🚛'; }
+        .fa-headset::before { content: '🎧'; }
+        .fa-bullhorn::before { content: '📢'; }
+        .fa-comments::before { content: '💬'; }
+        .fa-poll::before { content: '📋'; }
+        .fa-handshake::before { content: '🤝'; }
+        .fa-chart-bar::before { content: '📈'; }
+        .fa-shield-alt::before { content: '🛡'; }
+        .fa-trophy::before { content: '🏆'; }
+        .fa-eye::before { content: '👁'; }
+        .fa-cog::before { content: '⚙'; }
+        .fa-moon::before { content: '🌙'; }
+        .fa-sign-out-alt::before { content: '🚪'; }
+        .fa-times::before { content: '✕'; }
+        .fa-check-circle::before { content: '✓'; }
+        .fa-exclamation-circle::before { content: '⚠'; }
+        .fa-exclamation-triangle::before { content: '⚠'; }
+        .fa-info-circle::before { content: 'ℹ'; }
+        .fa-cloud-upload-alt::before { content: '☁'; }
+        .fa-edit::before { content: '✏'; }
+        .fa-inbox::before { content: '📥'; }
+        .fa-tools::before { content: '🔧'; }
+    </style>
     
-    <!-- Icons -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Icons - with fallback -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" onerror="this.remove()">
 </head>
 <body class="bg-gray-50 font-inter">
     <!-- Loading Overlay -->
