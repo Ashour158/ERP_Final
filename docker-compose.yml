@@ -1,22 +1,41 @@
 version: '3.8'
 
 services:
-  web:
+  # Backend Flask API
+  backend:
     build: .
     ports:
-      - "8080:8080"
+      - "5000:5000"
     environment:
-      - FLASK_ENV=production
+      - FLASK_ENV=development
       - DATABASE_URL=postgresql://erp_user:erp_password@db:5432/erp_db
       - REDIS_URL=redis://redis:6379/0
-      - SECRET_KEY=your-secret-key-change-in-production
-      - JWT_SECRET_KEY=jwt-secret-change-in-production
+      - SECRET_KEY=dev-secret-key-for-local-development
+      - JWT_SECRET_KEY=dev-jwt-secret-for-local-development
+      - CORS_ORIGINS=http://localhost:5173
     depends_on:
       - db
       - redis
     volumes:
+      - .:/app
       - ./uploads:/app/uploads
+    command: flask run --host=0.0.0.0 --port=5000 --debug
 
+  # Frontend React + Vite
+  frontend:
+    build: 
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    ports:
+      - "5173:5173"
+    environment:
+      - VITE_API_BASE_URL=http://localhost:5000/api
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    command: npm run dev -- --host 0.0.0.0
+
+  # PostgreSQL Database
   db:
     image: postgres:15
     environment:
@@ -28,16 +47,21 @@ services:
     ports:
       - "5432:5432"
 
+  # Redis for caching and rate limiting
   redis:
     image: redis:7-alpine
     ports:
       - "6379:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
 
+  # Celery Worker (background tasks)
   worker:
     build: .
     command: celery -A app.celery worker --loglevel=info
     environment:
-      - FLASK_ENV=production
+      - FLASK_ENV=development
       - DATABASE_URL=postgresql://erp_user:erp_password@db:5432/erp_db
       - REDIS_URL=redis://redis:6379/0
       - CELERY_BROKER_URL=redis://redis:6379/0
@@ -46,8 +70,10 @@ services:
       - db
       - redis
     volumes:
+      - .:/app
       - ./uploads:/app/uploads
 
 volumes:
   postgres_data:
+  redis_data:
 

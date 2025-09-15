@@ -9,6 +9,8 @@ from flask import Flask, request, jsonify, render_template, send_from_directory
 from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
 from flask_jwt_extended import JWTManager, jwt_required, create_access_token, get_jwt_identity
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime, timedelta
 import os
@@ -44,6 +46,31 @@ print(f"Database URI: {app.config.get('SQLALCHEMY_DATABASE_URI', 'Not set')}")
 db = SQLAlchemy(app)
 jwt = JWTManager(app)
 
+# Initialize rate limiter with conditional Redis support
+redis_url = app.config.get('REDIS_URL')
+storage_uri = None
+
+if redis_url:
+    try:
+        import redis
+        # Test Redis connection
+        redis_client = redis.from_url(redis_url)
+        redis_client.ping()
+        print(f"Using Redis storage for rate limiting: {redis_url}")
+        storage_uri = redis_url
+    except Exception as e:
+        print(f"Failed to connect to Redis ({redis_url}): {e}")
+        print("Falling back to in-memory storage for rate limiting")
+else:
+    print("REDIS_URL not set, using in-memory storage for rate limiting")
+
+limiter = Limiter(
+    key_func=get_remote_address,
+    app=app,
+    default_limits=["60 per minute"],
+    storage_uri=storage_uri,
+)
+
 # Initialize CORS with origins from config (use dict access to respect config values)
 cors_origins = app.config.get('CORS_ORIGINS', ["*"])
 CORS(app, origins=cors_origins)
@@ -52,6 +79,21 @@ print(f"CORS origins: {cors_origins}")
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# Security headers
+@app.after_request
+def apply_security_headers(response):
+    """Apply security headers to all responses"""
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    response.headers['X-Frame-Options'] = 'SAMEORIGIN'
+    response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+    response.headers['X-XSS-Protection'] = '1; mode=block'
+    
+    # Only add HSTS in production with HTTPS
+    if app.config.get('FORCE_HTTPS', False):
+        response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
+    
+    return response
 
 # ============================================================================
 # DATABASE MODELS - ALL 14 MODULES
@@ -1137,6 +1179,7 @@ def health_check():
 # ============================================================================
 
 @app.route('/api/auth/login', methods=['POST'])
+@limiter.limit("10 per minute")
 def login():
     """User authentication with company context"""
     try:
