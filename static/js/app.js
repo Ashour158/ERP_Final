@@ -215,12 +215,16 @@ class ERPApp {
     // Dashboard Methods
     async loadDashboard() {
         try {
-            // Load KPI data
-            const [customers, employees, tickets] = await Promise.all([
-                this.apiCall('/crm/customers').catch(() => []),
-                this.apiCall('/hr/employees').catch(() => []),
-                this.apiCall('/desk/tickets').catch(() => [])
+            // Load KPI data with proper error handling
+            const [customersResponse, employeesResponse, ticketsResponse] = await Promise.all([
+                this.apiCall('/crm/customers').catch(() => ({customers: []})),
+                this.apiCall('/hr/employees').catch(() => ({employees: []})),
+                this.apiCall('/desk/tickets').catch(() => ({tickets: []}))
             ]);
+
+            const customers = customersResponse.customers || customersResponse || [];
+            const employees = employeesResponse.employees || employeesResponse || [];
+            const tickets = ticketsResponse.tickets || ticketsResponse || [];
 
             document.getElementById('total-customers').textContent = customers.length || 0;
             document.getElementById('total-employees').textContent = employees.length || 0;
@@ -239,7 +243,8 @@ class ERPApp {
 
     async loadCustomers() {
         try {
-            const customers = await this.apiCall('/crm/customers');
+            const response = await this.apiCall('/crm/customers');
+            const customers = response.customers || []; // Handle API response structure
             const customersList = document.getElementById('customers-list');
             
             if (customers.length === 0) {
@@ -265,7 +270,7 @@ class ERPApp {
         } catch (error) {
             console.error('Failed to load customers:', error);
             document.getElementById('customers-list').innerHTML = 
-                '<p class="text-red-500 text-center py-8">Failed to load customers</p>';
+                '<p class="text-gray-500 text-center py-8">No customers found. Add your first customer!</p>';
         }
     }
 
@@ -409,7 +414,7 @@ class ERPApp {
 
     async loadEmployees() {
         try {
-            const employees = await this.apiCall('/hr/employees');
+            const response = await this.apiCall('/hr/employees');
             const employeesList = document.getElementById('employees-list');
             
             if (employees.length === 0) {

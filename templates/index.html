@@ -4,9 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Complete ERP System - Production Ready</title>
-    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
 </head>
 <body class="bg-gray-50 font-inter">
@@ -47,7 +44,7 @@
                         <button type="submit" id="login-btn" 
                                 class="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
                             <span class="absolute left-0 inset-y-0 flex items-center pl-3">
-                                <i class="fas fa-lock text-indigo-500 group-hover:text-indigo-400"></i>
+                                🔒
                             </span>
                             Sign In
                         </button>
@@ -73,7 +70,7 @@
                         <div class="flex items-center space-x-4">
                             <!-- User Profile -->
                             <div class="flex items-center space-x-3">
-                                <img id="user-avatar" class="h-8 w-8 rounded-full" src="https://via.placeholder.com/32" alt="User avatar">
+                                <img id="user-avatar" class="h-8 w-8 rounded-full" src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzIiIGhlaWdodD0iMzIiIHZpZXdCb3g9IjAgMCAzMiAzMiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPGNpcmNsZSBjeD0iMTYiIGN5PSIxNiIgcj0iMTYiIGZpbGw9IiM0RjQ2RTUiLz4KPHN2ZyB4PSI4IiB5PSI4IiB3aWR0aD0iMTYiIGhlaWdodD0iMTYiIHZpZXdCb3g9IjAgMCAxNiAxNiIgZmlsbD0ibm9uZSI+CjxwYXRoIGQ9Ik04IDhDMTAuMjA5MSA4IDEyIDYuMjA5MSAxMiA0QzEyIDEuNzkwOSAxMC4yMDkxIDAgOCAwQzUuNzkwOSAwIDQgMS43OTA5IDQgNEM0IDYuMjA5MSA1Ljc5MDkgOCA4IDhaIiBmaWxsPSJ3aGl0ZSIvPgo8cGF0aCBkPSJNOCAxMEMzLjU4MTcyIDEwIDAgMTMuNTgxNyAwIDE4SDE2QzE2IDEzLjU4MTcgMTIuNDE4MyAxMCA4IDEwWiIgZmlsbD0id2hpdGUiLz4KPHN2Zz4KPHN2Zz4=" alt="User avatar">
                                 <div class="hidden md:block">
                                     <div class="text-sm font-medium text-gray-900" id="user-name">Demo User</div>
                                     <div class="text-xs text-gray-500" id="user-role">Admin</div>
@@ -81,7 +78,7 @@
                             </div>
                             <!-- Logout Button -->
                             <button onclick="logout()" class="text-gray-500 hover:text-gray-700">
-                                <i class="fas fa-sign-out-alt"></i>
+                                🚪
                             </button>
                         </div>
                     </div>
@@ -97,43 +94,37 @@
                                 <!-- Dashboard -->
                                 <a href="#" onclick="switchModule('dashboard')" 
                                    class="module-nav text-gray-900 hover:text-gray-900 hover:bg-gray-50 group flex items-center px-2 py-2 text-sm font-medium rounded-md">
-                                    <i class="fas fa-tachometer-alt text-gray-400 mr-3 text-lg"></i>
-                                    Dashboard
+                                    📊 Dashboard
                                 </a>
                                 
                                 <!-- CRM Module -->
                                 <a href="#" onclick="switchModule('crm')" 
                                    class="module-nav text-gray-600 hover:text-gray-900 hover:bg-gray-50 group flex items-center px-2 py-2 text-sm font-medium rounded-md">
-                                    <i class="fas fa-users text-gray-400 mr-3 text-lg"></i>
-                                    CRM
+                                    👥 CRM
                                 </a>
                                 
                                 <!-- Finance Module -->
                                 <a href="#" onclick="switchModule('finance')" 
                                    class="module-nav text-gray-600 hover:text-gray-900 hover:bg-gray-50 group flex items-center px-2 py-2 text-sm font-medium rounded-md">
-                                    <i class="fas fa-dollar-sign text-gray-400 mr-3 text-lg"></i>
-                                    Finance
+                                    💰 Finance
                                 </a>
                                 
                                 <!-- HR Module -->
                                 <a href="#" onclick="switchModule('hr')" 
                                    class="module-nav text-gray-600 hover:text-gray-900 hover:bg-gray-50 group flex items-center px-2 py-2 text-sm font-medium rounded-md">
-                                    <i class="fas fa-user-tie text-gray-400 mr-3 text-lg"></i>
-                                    HR & People
+                                    👔 HR & People
                                 </a>
                                 
                                 <!-- Supply Chain Module -->
                                 <a href="#" onclick="switchModule('supply-chain')" 
                                    class="module-nav text-gray-600 hover:text-gray-900 hover:bg-gray-50 group flex items-center px-2 py-2 text-sm font-medium rounded-md">
-                                    <i class="fas fa-truck text-gray-400 mr-3 text-lg"></i>
-                                    Supply Chain
+                                    🚚 Supply Chain
                                 </a>
                                 
                                 <!-- Desk Module -->
                                 <a href="#" onclick="switchModule('desk')" 
                                    class="module-nav text-gray-600 hover:text-gray-900 hover:bg-gray-50 group flex items-center px-2 py-2 text-sm font-medium rounded-md">
-                                    <i class="fas fa-headset text-gray-400 mr-3 text-lg"></i>
-                                    Desk & Support
+                                    🎧 Desk & Support
                                 </a>
                             </nav>
                         </div>
@@ -159,7 +150,7 @@
                                             <div class="p-5">
                                                 <div class="flex items-center">
                                                     <div class="flex-shrink-0">
-                                                        <i class="fas fa-users text-gray-400 text-2xl"></i>
+                                                        👥
                                                     </div>
                                                     <div class="ml-5 w-0 flex-1">
                                                         <dl>
@@ -175,7 +166,7 @@
                                             <div class="p-5">
                                                 <div class="flex items-center">
                                                     <div class="flex-shrink-0">
-                                                        <i class="fas fa-dollar-sign text-gray-400 text-2xl"></i>
+                                                        💰
                                                     </div>
                                                     <div class="ml-5 w-0 flex-1">
                                                         <dl>
@@ -191,7 +182,7 @@
                                             <div class="p-5">
                                                 <div class="flex items-center">
                                                     <div class="flex-shrink-0">
-                                                        <i class="fas fa-user-tie text-gray-400 text-2xl"></i>
+                                                        👔
                                                     </div>
                                                     <div class="ml-5 w-0 flex-1">
                                                         <dl>
@@ -207,7 +198,7 @@
                                             <div class="p-5">
                                                 <div class="flex items-center">
                                                     <div class="flex-shrink-0">
-                                                        <i class="fas fa-ticket-alt text-gray-400 text-2xl"></i>
+                                                        🎫
                                                     </div>
                                                     <div class="ml-5 w-0 flex-1">
                                                         <dl>
@@ -250,7 +241,7 @@
                                                 <div class="flex justify-between items-center mb-4">
                                                     <h3 class="text-lg leading-6 font-medium text-gray-900">Customers</h3>
                                                     <button onclick="showAddCustomerModal()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md text-sm font-medium">
-                                                        <i class="fas fa-plus mr-2"></i>Add Customer
+                                                                                                                ➕ Add Customer
                                                     </button>
                                                 </div>
                                                 <div id="customers-list" class="space-y-4">
@@ -267,7 +258,7 @@
                                                 <div class="flex justify-between items-center mb-4">
                                                     <h3 class="text-lg leading-6 font-medium text-gray-900">Deals</h3>
                                                     <button onclick="showAddDealModal()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md text-sm font-medium">
-                                                        <i class="fas fa-plus mr-2"></i>Add Deal
+                                                        ➕ Add Deal
                                                     </button>
                                                 </div>
                                                 <div id="deals-list" class="space-y-4">
@@ -284,7 +275,7 @@
                                                 <div class="flex justify-between items-center mb-4">
                                                     <h3 class="text-lg leading-6 font-medium text-gray-900">Quotes</h3>
                                                     <button onclick="showAddQuoteModal()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md text-sm font-medium">
-                                                        <i class="fas fa-plus mr-2"></i>Add Quote
+                                                        ➕ Add Quote
                                                     </button>
                                                 </div>
                                                 <div id="quotes-list" class="space-y-4">
@@ -321,7 +312,7 @@
                                                 <div class="flex justify-between items-center mb-4">
                                                     <h3 class="text-lg leading-6 font-medium text-gray-900">Invoices</h3>
                                                     <button onclick="showAddInvoiceModal()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md text-sm font-medium">
-                                                        <i class="fas fa-plus mr-2"></i>Create Invoice
+                                                        ➕ Create Invoice
                                                     </button>
                                                 </div>
                                                 <div id="invoices-list" class="space-y-4">
@@ -338,7 +329,7 @@
                                                 <div class="flex justify-between items-center mb-4">
                                                     <h3 class="text-lg leading-6 font-medium text-gray-900">Vendor Payments</h3>
                                                     <button onclick="showAddVendorPaymentModal()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md text-sm font-medium">
-                                                        <i class="fas fa-plus mr-2"></i>Add Payment
+                                                        ➕ Add Payment
                                                     </button>
                                                 </div>
                                                 <div id="vendor-payments-list" class="space-y-4">
@@ -384,7 +375,7 @@
                                                 <div class="flex justify-between items-center mb-4">
                                                     <h3 class="text-lg leading-6 font-medium text-gray-900">Employees</h3>
                                                     <button onclick="showAddEmployeeModal()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md text-sm font-medium">
-                                                        <i class="fas fa-plus mr-2"></i>Add Employee
+                                                        ➕ Add Employee
                                                     </button>
                                                 </div>
                                                 <div id="employees-list" class="space-y-4">
@@ -402,10 +393,10 @@
                                                     <h3 class="text-lg leading-6 font-medium text-gray-900">Attendance Management</h3>
                                                     <div class="space-x-2">
                                                         <button onclick="checkIn()" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md text-sm font-medium">
-                                                            <i class="fas fa-sign-in-alt mr-2"></i>Check In
+                                                            ⬇️ Check In
                                                         </button>
                                                         <button onclick="checkOut()" class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md text-sm font-medium">
-                                                            <i class="fas fa-sign-out-alt mr-2"></i>Check Out
+                                                            ⬆️ Check Out
                                                         </button>
                                                     </div>
                                                 </div>
@@ -423,7 +414,7 @@
                                                 <div class="flex justify-between items-center mb-4">
                                                     <h3 class="text-lg leading-6 font-medium text-gray-900">Leave Requests</h3>
                                                     <button onclick="showAddLeaveRequestModal()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md text-sm font-medium">
-                                                        <i class="fas fa-plus mr-2"></i>Request Leave
+                                                        ➕ Request Leave
                                                     </button>
                                                 </div>
                                                 <div id="leave-requests-list" class="space-y-4">
@@ -440,7 +431,7 @@
                                                 <div class="flex justify-between items-center mb-4">
                                                     <h3 class="text-lg leading-6 font-medium text-gray-900">Training Programs</h3>
                                                     <button onclick="showAddTrainingModal()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md text-sm font-medium">
-                                                        <i class="fas fa-plus mr-2"></i>Add Program
+                                                        ➕ Add Program
                                                     </button>
                                                 </div>
                                                 <div id="training-list" class="space-y-4">
@@ -457,7 +448,7 @@
                                                 <div class="flex justify-between items-center mb-4">
                                                     <h3 class="text-lg leading-6 font-medium text-gray-900">Payroll</h3>
                                                     <button onclick="showAddPayrollModal()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md text-sm font-medium">
-                                                        <i class="fas fa-plus mr-2"></i>Process Payroll
+                                                        ➕ Process Payroll
                                                     </button>
                                                 </div>
                                                 <div id="payroll-list" class="space-y-4">
@@ -497,7 +488,7 @@
                                                 <div class="flex justify-between items-center mb-4">
                                                     <h3 class="text-lg leading-6 font-medium text-gray-900">Inventory</h3>
                                                     <button onclick="showAddInventoryModal()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md text-sm font-medium">
-                                                        <i class="fas fa-plus mr-2"></i>Add Item
+                                                        ➕ Add Item
                                                     </button>
                                                 </div>
                                                 <div id="inventory-list" class="space-y-4">
@@ -514,7 +505,7 @@
                                                 <div class="flex justify-between items-center mb-4">
                                                     <h3 class="text-lg leading-6 font-medium text-gray-900">Purchase Orders</h3>
                                                     <button onclick="showAddPurchaseOrderModal()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md text-sm font-medium">
-                                                        <i class="fas fa-plus mr-2"></i>Create Order
+                                                        ➕ Create Order
                                                     </button>
                                                 </div>
                                                 <div id="purchase-orders-list" class="space-y-4">
@@ -531,7 +522,7 @@
                                                 <div class="flex justify-between items-center mb-4">
                                                     <h3 class="text-lg leading-6 font-medium text-gray-900">Courier Shipments</h3>
                                                     <button onclick="showAddShipmentModal()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md text-sm font-medium">
-                                                        <i class="fas fa-plus mr-2"></i>Create Shipment
+                                                        ➕ Create Shipment
                                                     </button>
                                                 </div>
                                                 <div id="shipments-list" class="space-y-4">
@@ -568,7 +559,7 @@
                                                 <div class="flex justify-between items-center mb-4">
                                                     <h3 class="text-lg leading-6 font-medium text-gray-900">Support Tickets</h3>
                                                     <button onclick="showAddTicketModal()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md text-sm font-medium">
-                                                        <i class="fas fa-plus mr-2"></i>Create Ticket
+                                                        ➕ Create Ticket
                                                     </button>
                                                 </div>
                                                 <div id="tickets-list" class="space-y-4">
@@ -585,7 +576,7 @@
                                                 <div class="flex justify-between items-center mb-4">
                                                     <h3 class="text-lg leading-6 font-medium text-gray-900">Work Orders</h3>
                                                     <button onclick="showAddWorkOrderModal()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md text-sm font-medium">
-                                                        <i class="fas fa-plus mr-2"></i>Create Work Order
+                                                        ➕ Create Work Order
                                                     </button>
                                                 </div>
                                                 <div id="work-orders-list" class="space-y-4">

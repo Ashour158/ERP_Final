@@ -52,6 +52,8 @@ def init_database() -> Tuple[Optional[object], Optional[object]]:
                 password_hash=generate_password_hash(admin_password),
                 first_name=admin_first_name,
                 last_name=admin_last_name,
+                role='admin',
+                is_active=True
             )
             db.session.add(admin_user)
 
@@ -71,9 +73,11 @@ def init_database() -> Tuple[Optional[object], Optional[object]]:
 
 if __name__ == "__main__":
     # Allow running this script directly for manual database initialization
-    company, admin_user = init_database()
-    if company and admin_user:
-        print(f"Successfully initialized database with company: {company.name}")
-        print(f"Admin user created: {admin_user.username}")
-    else:
-        print("Database initialization failed or was not needed")
+    from app import app
+    with app.app_context():
+        company, admin_user = init_database()
+        if company and admin_user:
+            print(f"Successfully initialized database with company: {company.name}")
+            print(f"Admin user created: {admin_user.username}")
+        else:
+            print("Database initialization failed or was not needed")
