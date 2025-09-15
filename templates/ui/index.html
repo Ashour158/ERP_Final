@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Complete ERP System V2.0</title>
+    
+    <!-- PWA Meta Tags -->
+    <meta name="theme-color" content="#3b82f6">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="ERP System">
+    
+    <!-- PWA Icons -->
+    <link rel="icon" type="image/png" sizes="192x192" href="/static/icons/icon-192x192.png">
+    <link rel="apple-touch-icon" href="/static/icons/icon-192x192.png">
+    <link rel="manifest" href="/manifest.json">
+    
+    <!-- Styles -->
+    <link rel="stylesheet" href="/static/css/ui.css">
+    
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body class="bg-gray-50 font-inter">
+    <!-- Loading Overlay -->
+    <div id="loading-overlay" class="fixed inset-0 bg-white bg-opacity-90 flex items-center justify-center z-50 hidden">
+        <div class="text-center">
+            <div class="spinner"></div>
+            <p class="mt-4 text-gray-600">Loading...</p>
+        </div>
+    </div>
+
+    <!-- Login Screen -->
+    <div id="login-screen" class="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
+        <div class="max-w-md w-full bg-white rounded-xl shadow-lg p-8">
+            <div class="text-center mb-8">
+                <div class="w-16 h-16 bg-blue-600 rounded-lg flex items-center justify-center mx-auto mb-4">
+                    <i class="fas fa-building text-white text-2xl"></i>
+                </div>
+                <h1 class="text-2xl font-bold text-gray-900">Complete ERP System</h1>
+                <p class="text-gray-600 mt-2">Sign in to your account</p>
+            </div>
+            
+            <form id="login-form" class="space-y-6">
+                <div>
+                    <label for="username" class="block text-sm font-medium text-gray-700 mb-2">Username</label>
+                    <input type="text" id="username" name="username" required 
+                           class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                           placeholder="Enter your username">
+                </div>
+                
+                <div>
+                    <label for="password" class="block text-sm font-medium text-gray-700 mb-2">Password</label>
+                    <input type="password" id="password" name="password" required
+                           class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                           placeholder="Enter your password">
+                </div>
+                
+                <div class="flex items-center justify-between">
+                    <label class="flex items-center">
+                        <input type="checkbox" id="remember-me" class="rounded">
+                        <span class="ml-2 text-sm text-gray-600">Remember me</span>
+                    </label>
+                    <a href="#" class="text-sm text-blue-600 hover:text-blue-800">Forgot password?</a>
+                </div>
+                
+                <button type="submit" 
+                        class="w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors">
+                    Sign In
+                </button>
+                
+                <div id="login-error" class="hidden text-red-600 text-sm text-center"></div>
+            </form>
+            
+            <div class="mt-6 text-center text-sm text-gray-600">
+                <p>Demo credentials: <strong>admin</strong> / <strong>admin123</strong></p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Application -->
+    <div id="main-app" class="hidden">
+        <!-- Top Navigation Bar -->
+        <nav class="bg-white border-b border-gray-200 px-4 py-3 fixed top-0 left-0 right-0 z-40">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-4">
+                    <!-- Mobile Menu Toggle -->
+                    <button id="mobile-menu-toggle" class="lg:hidden p-2 rounded-lg hover:bg-gray-100">
+                        <i class="fas fa-bars text-gray-600"></i>
+                    </button>
+                    
+                    <!-- Logo -->
+                    <div class="flex items-center space-x-2">
+                        <div class="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
+                            <i class="fas fa-building text-white text-sm"></i>
+                        </div>
+                        <span class="font-bold text-gray-900 hidden sm:block">ERP System V2.0</span>
+                    </div>
+                </div>
+                
+                <!-- Search Bar -->
+                <div class="flex-1 max-w-2xl mx-4">
+                    <div class="relative">
+                        <input type="text" id="global-search" placeholder="Search across all modules..." 
+                               class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                        <i class="fas fa-search absolute left-3 top-3 text-gray-400"></i>
+                        
+                        <!-- Search Results Dropdown -->
+                        <div id="search-results" class="absolute top-full left-0 right-0 bg-white border border-gray-200 rounded-lg shadow-lg mt-1 hidden max-h-96 overflow-y-auto z-50">
+                            <!-- Dynamic search results will be inserted here -->
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- User Menu -->
+                <div class="flex items-center space-x-4">
+                    <!-- Notifications -->
+                    <button id="notifications-toggle" class="relative p-2 rounded-lg hover:bg-gray-100">
+                        <i class="fas fa-bell text-gray-600"></i>
+                        <span id="notification-badge" class="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center hidden">0</span>
+                    </button>
+                    
+                    <!-- Quick Create -->
+                    <div class="relative">
+                        <button id="quick-create-toggle" class="p-2 rounded-lg hover:bg-gray-100">
+                            <i class="fas fa-plus text-gray-600"></i>
+                        </button>
+                        <div id="quick-create-menu" class="absolute top-full right-0 bg-white border border-gray-200 rounded-lg shadow-lg mt-1 w-48 hidden z-50">
+                            <div class="py-1">
+                                <a href="#" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" data-action="create-customer">
+                                    <i class="fas fa-user mr-2"></i>New Customer
+                                </a>
+                                <a href="#" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" data-action="create-deal">
+                                    <i class="fas fa-handshake mr-2"></i>New Deal
+                                </a>
+                                <a href="#" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" data-action="create-ticket">
+                                    <i class="fas fa-ticket-alt mr-2"></i>New Ticket
+                                </a>
+                                <a href="#" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" data-action="create-vendor">
+                                    <i class="fas fa-truck mr-2"></i>New Vendor
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- User Profile -->
+                    <div class="relative">
+                        <button id="user-menu-toggle" class="flex items-center space-x-2 p-2 rounded-lg hover:bg-gray-100">
+                            <div id="user-avatar" class="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center">
+                                <span id="user-initials" class="text-white text-sm font-medium">AA</span>
+                            </div>
+                            <div class="hidden md:block text-left">
+                                <p id="user-name" class="text-sm font-medium text-gray-900">Admin User</p>
+                                <p id="user-role" class="text-xs text-gray-500">Administrator</p>
+                            </div>
+                            <i class="fas fa-chevron-down text-gray-400 text-sm"></i>
+                        </button>
+                        
+                        <div id="user-menu" class="absolute top-full right-0 bg-white border border-gray-200 rounded-lg shadow-lg mt-1 w-48 hidden z-50">
+                            <div class="py-1">
+                                <a href="#" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" data-action="profile">
+                                    <i class="fas fa-user mr-2"></i>Profile
+                                </a>
+                                <a href="#" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" data-action="settings">
+                                    <i class="fas fa-cog mr-2"></i>Settings
+                                </a>
+                                <a href="#" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" data-action="dark-mode-toggle">
+                                    <i class="fas fa-moon mr-2"></i>Dark Mode
+                                </a>
+                                <hr class="my-1">
+                                <a href="#" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" data-action="logout">
+                                    <i class="fas fa-sign-out-alt mr-2"></i>Sign Out
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </nav>
+
+        <!-- Sidebar -->
+        <aside id="sidebar" class="fixed left-0 top-16 bottom-0 w-64 bg-white border-r border-gray-200 overflow-y-auto z-30 transform -translate-x-full lg:translate-x-0 transition-transform">
+            <div class="p-4">
+                <!-- Module Navigation -->
+                <nav class="space-y-1">
+                    <!-- Dashboard -->
+                    <a href="#" class="nav-item active" data-module="dashboard">
+                        <i class="fas fa-chart-pie"></i>
+                        <span>Dashboard</span>
+                    </a>
+                    
+                    <!-- CRM -->
+                    <div class="nav-group">
+                        <button class="nav-group-toggle" data-group="crm">
+                            <i class="fas fa-users"></i>
+                            <span>CRM</span>
+                            <i class="fas fa-chevron-right nav-chevron"></i>
+                        </button>
+                        <div class="nav-submenu" data-submenu="crm">
+                            <a href="#" class="nav-subitem" data-module="crm-customers">Customers</a>
+                            <a href="#" class="nav-subitem" data-module="crm-deals">Deals</a>
+                            <a href="#" class="nav-subitem" data-module="crm-quotes">Quotes</a>
+                            <a href="#" class="nav-subitem" data-module="crm-activities">Activities</a>
+                        </div>
+                    </div>
+                    
+                    <!-- Finance -->
+                    <div class="nav-group">
+                        <button class="nav-group-toggle" data-group="finance">
+                            <i class="fas fa-dollar-sign"></i>
+                            <span>Finance</span>
+                            <i class="fas fa-chevron-right nav-chevron"></i>
+                        </button>
+                        <div class="nav-submenu" data-submenu="finance">
+                            <a href="#" class="nav-subitem" data-module="finance-invoices">Invoices</a>
+                            <a href="#" class="nav-subitem" data-module="finance-payments">Payments</a>
+                            <a href="#" class="nav-subitem" data-module="finance-reports">Reports</a>
+                        </div>
+                    </div>
+                    
+                    <!-- HR & People -->
+                    <div class="nav-group">
+                        <button class="nav-group-toggle" data-group="hr">
+                            <i class="fas fa-user-tie"></i>
+                            <span>HR & People</span>
+                            <i class="fas fa-chevron-right nav-chevron"></i>
+                        </button>
+                        <div class="nav-submenu" data-submenu="hr">
+                            <a href="#" class="nav-subitem" data-module="hr-employees">Employees</a>
+                            <a href="#" class="nav-subitem" data-module="hr-attendance">Attendance</a>
+                            <a href="#" class="nav-subitem" data-module="hr-leave">Leave Requests</a>
+                            <a href="#" class="nav-subitem" data-module="hr-training">Training</a>
+                            <a href="#" class="nav-subitem" data-module="hr-payroll">Payroll</a>
+                        </div>
+                    </div>
+                    
+                    <!-- Supply Chain -->
+                    <div class="nav-group">
+                        <button class="nav-group-toggle" data-group="supply-chain">
+                            <i class="fas fa-truck"></i>
+                            <span>Supply Chain</span>
+                            <i class="fas fa-chevron-right nav-chevron"></i>
+                        </button>
+                        <div class="nav-submenu" data-submenu="supply-chain">
+                            <a href="#" class="nav-subitem" data-module="supply-inventory">Inventory</a>
+                            <a href="#" class="nav-subitem" data-module="supply-purchase-orders">Purchase Orders</a>
+                            <a href="#" class="nav-subitem" data-module="supply-shipments">Shipments</a>
+                        </div>
+                    </div>
+                    
+                    <!-- Desk & Support -->
+                    <div class="nav-group">
+                        <button class="nav-group-toggle" data-group="desk">
+                            <i class="fas fa-headset"></i>
+                            <span>Desk & Support</span>
+                            <i class="fas fa-chevron-right nav-chevron"></i>
+                        </button>
+                        <div class="nav-submenu" data-submenu="desk">
+                            <a href="#" class="nav-subitem" data-module="desk-tickets">Tickets</a>
+                            <a href="#" class="nav-subitem" data-module="desk-work-orders">Work Orders</a>
+                            <a href="#" class="nav-subitem" data-module="desk-knowledge-base">Knowledge Base</a>
+                        </div>
+                    </div>
+                    
+                    <!-- Marketing -->
+                    <div class="nav-group">
+                        <button class="nav-group-toggle" data-group="marketing">
+                            <i class="fas fa-bullhorn"></i>
+                            <span>Marketing</span>
+                            <i class="fas fa-chevron-right nav-chevron"></i>
+                        </button>
+                        <div class="nav-submenu" data-submenu="marketing">
+                            <a href="#" class="nav-subitem" data-module="marketing-campaigns">Campaigns</a>
+                            <a href="#" class="nav-subitem" data-module="marketing-segments">Segments</a>
+                            <a href="#" class="nav-subitem" data-module="marketing-templates">Templates</a>
+                        </div>
+                    </div>
+                    
+                    <!-- Community -->
+                    <a href="#" class="nav-item" data-module="community">
+                        <i class="fas fa-comments"></i>
+                        <span>Community</span>
+                    </a>
+                    
+                    <!-- Surveys -->
+                    <a href="#" class="nav-item" data-module="surveys">
+                        <i class="fas fa-poll"></i>
+                        <span>Surveys</span>
+                    </a>
+                    
+                    <!-- Vendors -->
+                    <a href="#" class="nav-item" data-module="vendors">
+                        <i class="fas fa-handshake"></i>
+                        <span>Vendors</span>
+                    </a>
+                    
+                    <!-- Analytics -->
+                    <a href="#" class="nav-item" data-module="analytics">
+                        <i class="fas fa-chart-bar"></i>
+                        <span>Analytics</span>
+                    </a>
+                    
+                    <!-- Compliance -->
+                    <a href="#" class="nav-item" data-module="compliance">
+                        <i class="fas fa-shield-alt"></i>
+                        <span>Compliance</span>
+                    </a>
+                    
+                    <!-- KPIs -->
+                    <a href="#" class="nav-item" data-module="kpis">
+                        <i class="fas fa-trophy"></i>
+                        <span>KPIs</span>
+                    </a>
+                    
+                    <!-- Vigilance -->
+                    <a href="#" class="nav-item" data-module="vigilance">
+                        <i class="fas fa-eye"></i>
+                        <span>Vigilance</span>
+                    </a>
+                </nav>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main id="main-content" class="lg:ml-64 pt-16 min-h-screen bg-gray-50">
+            <div id="content-area" class="p-6">
+                <!-- Dynamic content will be loaded here -->
+                <div id="dashboard-content">
+                    <!-- Dashboard will be loaded here by default -->
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Sidebar Overlay for Mobile -->
+    <div id="sidebar-overlay" class="fixed inset-0 bg-black bg-opacity-50 z-20 hidden lg:hidden"></div>
+
+    <!-- Notification Toast Container -->
+    <div id="toast-container" class="fixed top-4 right-4 z-50 space-y-2">
+        <!-- Toast notifications will be inserted here -->
+    </div>
+
+    <!-- GPS Location Modal -->
+    <div id="gps-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+        <div class="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <h3 class="text-lg font-semibold mb-4">GPS Location Required</h3>
+            <p class="text-gray-600 mb-4">This action requires your current location. Please allow location access when prompted.</p>
+            <div class="flex space-x-3">
+                <button id="gps-allow" class="flex-1 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">
+                    Allow Location
+                </button>
+                <button id="gps-cancel" class="flex-1 bg-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-400">
+                    Cancel
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- File Upload Modal -->
+    <div id="upload-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+        <div class="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <h3 class="text-lg font-semibold mb-4">Upload Files</h3>
+            <div class="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
+                <i class="fas fa-cloud-upload-alt text-gray-400 text-3xl mb-2"></i>
+                <p class="text-gray-600 mb-2">Drag and drop files here, or click to select</p>
+                <input type="file" id="file-input" multiple class="hidden">
+                <button id="file-select" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">
+                    Select Files
+                </button>
+            </div>
+            <div id="upload-progress" class="mt-4 hidden">
+                <div class="w-full bg-gray-200 rounded-full h-2">
+                    <div id="upload-progress-bar" class="bg-blue-600 h-2 rounded-full" style="width: 0%"></div>
+                </div>
+                <p id="upload-status" class="text-sm text-gray-600 mt-1">Uploading...</p>
+            </div>
+            <div class="flex space-x-3 mt-4">
+                <button id="upload-confirm" class="flex-1 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">
+                    Upload
+                </button>
+                <button id="upload-cancel" class="flex-1 bg-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-400">
+                    Cancel
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="/static/js/ui.js"></script>
+    
+    <!-- PWA Installation -->
+    <script>
+        // Register service worker
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', function() {
+                navigator.serviceWorker.register('/sw.js')
+                    .then(function(registration) {
+                        console.log('ServiceWorker registration successful');
+                    })
+                    .catch(function(err) {
+                        console.log('ServiceWorker registration failed: ', err);
+                    });
+            });
+        }
+        
+        // PWA Install prompt
+        let deferredPrompt;
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredPrompt = e;
+            // Show install button if needed
+        });
+    </script>
+</body>
+</html>

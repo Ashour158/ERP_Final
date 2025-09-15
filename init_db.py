@@ -71,9 +71,17 @@ def init_database() -> Tuple[Optional[object], Optional[object]]:
 
 if __name__ == "__main__":
     # Allow running this script directly for manual database initialization
-    company, admin_user = init_database()
-    if company and admin_user:
-        print(f"Successfully initialized database with company: {company.name}")
-        print(f"Admin user created: {admin_user.username}")
-    else:
-        print("Database initialization failed or was not needed")
+    from app import app, db
+    
+    with app.app_context():
+        # Create all tables
+        db.create_all()
+        print("Database tables created successfully")
+        
+        # Initialize default data
+        company, admin_user = init_database()
+        if company and admin_user:
+            print(f"Successfully initialized database with company: {company.name}")
+            print(f"Admin user created: {admin_user.username}")
+        else:
+            print("Database initialization failed or was not needed")

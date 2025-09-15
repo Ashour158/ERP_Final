@@ -2882,5 +2882,555 @@ def community_like_post(post_id):
     if not post:
         return jsonify({'error': 'Post not found'}), 404
     
-    # Check if already like
+    # Check if already liked
+    existing_like = CommunityLike.query.filter_by(
+        post_id=post_id,
+        user_id=current_user.id,
+        company_id=company.id
+    ).first()
+    
+    if existing_like:
+        # Unlike
+        db.session.delete(existing_like)
+        post.likes_count = max(0, post.likes_count - 1)
+        action = 'unliked'
+    else:
+        # Like
+        like = CommunityLike(
+            company_id=company.id,
+            post_id=post_id,
+            user_id=current_user.id
+        )
+        db.session.add(like)
+        post.likes_count += 1
+        action = 'liked'
+    
+    db.session.commit()
+    
+    # Update Community KPI
+    update_user_kpi(current_user.id, 'community', 'post_interactions', 1)
+    
+    return jsonify({'message': f'Post {action} successfully', 'likes_count': post.likes_count}), 200
+
+# ============================================================================
+# COMPLIANCE MODULE ROUTES
+# ============================================================================
+
+@app.route('/api/compliance/audits', methods=['GET', 'POST'])
+@jwt_required()
+@company_required
+def compliance_audits():
+    """Compliance and quality management with ISO 9001"""
+    company = get_current_company()
+    current_user = get_current_user()
+    
+    if request.method == 'GET':
+        # Get pagination parameters
+        page = safe_int(request.args.get('page', 1), 1)
+        per_page = safe_int(request.args.get('per_page', 20), 20)
+        
+        # Build query with optional filters
+        query = ComplianceAudit.query.filter_by(company_id=company.id)
+        
+        # Add filters
+        if request.args.get('audit_type'):
+            query = query.filter(ComplianceAudit.audit_type == request.args.get('audit_type'))
+        if request.args.get('status'):
+            query = query.filter(ComplianceAudit.status == request.args.get('status'))
+        if request.args.get('standard'):
+            query = query.filter(ComplianceAudit.standard == request.args.get('standard'))
+        
+        # Order by scheduled date
+        query = query.order_by(ComplianceAudit.scheduled_date.desc())
+        
+        # Apply pagination
+        result = paginate_query(query, page, per_page)
+        audits = result['items']
+        
+        return jsonify({
+            'audits': [{
+                'id': a.id,
+                'audit_type': a.audit_type,
+                'title': a.title,
+                'description': a.description,
+                'standard': a.standard,
+                'scope': a.scope,
+                'scheduled_date': a.scheduled_date.isoformat() if a.scheduled_date else None,
+                'actual_date': a.actual_date.isoformat() if a.actual_date else None,
+                'status': a.status,
+                'overall_rating': a.overall_rating,
+                'follow_up_required': a.follow_up_required,
+                'auditor': {
+                    'id': a.auditor.id,
+                    'name': f"{a.auditor.first_name} {a.auditor.last_name}",
+                    'profile_picture': a.auditor.profile_picture
+                },
+                'findings': json.loads(a.findings) if a.findings else [],
+                'non_conformances': json.loads(a.non_conformances) if a.non_conformances else [],
+                'created_at': a.created_at.isoformat()
+            } for a in audits],
+            'pagination': result['pagination']
+        }), 200
+    
+    elif request.method == 'POST':
+        data = request.get_json()
+        
+        audit = ComplianceAudit(
+            company_id=company.id,
+            audit_type=data['audit_type'],
+            title=data['title'],
+            description=data.get('description'),
+            standard=data.get('standard'),
+            scope=data.get('scope'),
+            auditor_id=data.get('auditor_id', current_user.id),
+            auditee_department=data.get('auditee_department'),
+            scheduled_date=datetime.strptime(data['scheduled_date'], '%Y-%m-%d').date() if data.get('scheduled_date') else None
+        )
+        
+        db.session.add(audit)
+        db.session.commit()
+        
+        # Update Compliance KPI
+        update_user_kpi(current_user.id, 'compliance', 'audits_scheduled', 1)
+        
+        return jsonify({'message': 'Compliance audit created successfully', 'id': audit.id}), 201
+
+# ============================================================================
+# BUSINESS ANALYTICS MODULE ROUTES  
+# ============================================================================
+
+@app.route('/api/analytics/reports', methods=['GET', 'POST'])
+@jwt_required()
+@company_required
+def analytics_reports():
+    """Business analysis module with cross-module intelligence"""
+    company = get_current_company()
+    current_user = get_current_user()
+    
+    if request.method == 'GET':
+        reports = BusinessAnalytics.query.filter_by(company_id=company.id).all()
+        return jsonify([{
+            'id': r.id,
+            'report_name': r.report_name,
+            'report_type': r.report_type,
+            'data_sources': json.loads(r.data_sources) if r.data_sources else [],
+            'metrics': json.loads(r.metrics) if r.metrics else [],
+            'date_range_start': r.date_range_start.isoformat() if r.date_range_start else None,
+            'date_range_end': r.date_range_end.isoformat() if r.date_range_end else None,
+            'is_automated': r.is_automated,
+            'schedule_frequency': r.schedule_frequency,
+            'last_run_at': r.last_run_at.isoformat() if r.last_run_at else None,
+            'next_run_at': r.next_run_at.isoformat() if r.next_run_at else None,
+            'creator': {
+                'id': r.creator.id,
+                'name': f"{r.creator.first_name} {r.creator.last_name}"
+            }
+        } for r in reports])
+    
+    elif request.method == 'POST':
+        data = request.get_json()
+        
+        report = BusinessAnalytics(
+            company_id=company.id,
+            report_name=data['report_name'],
+            report_type=data.get('report_type', 'sales'),
+            data_sources=json.dumps(data.get('data_sources', [])),
+            metrics=json.dumps(data.get('metrics', [])),
+            filters=json.dumps(data.get('filters', {})),
+            date_range_start=datetime.strptime(data['date_range_start'], '%Y-%m-%d').date() if data.get('date_range_start') else None,
+            date_range_end=datetime.strptime(data['date_range_end'], '%Y-%m-%d').date() if data.get('date_range_end') else None,
+            is_automated=data.get('is_automated', False),
+            schedule_frequency=data.get('schedule_frequency'),
+            created_by=current_user.id
+        )
+        
+        db.session.add(report)
+        db.session.commit()
+        
+        # Update Analytics KPI
+        update_user_kpi(current_user.id, 'analytics', 'reports_created', 1)
+        
+        return jsonify({'message': 'Analytics report created successfully', 'id': report.id}), 201
+
+# ============================================================================
+# KPI MODULE ROUTES
+# ============================================================================
+
+@app.route('/api/kpis', methods=['GET'])
+@jwt_required()
+@company_required
+def universal_kpis():
+    """Universal KPI system for all users across all modules"""
+    company = get_current_company()
+    current_user = get_current_user()
+    
+    # Get KPIs for current user or all users (if admin)
+    user_id = request.args.get('user_id')
+    if user_id and current_user.role == 'admin':
+        target_user_id = int(user_id)
+    else:
+        target_user_id = current_user.id
+    
+    kpis = UserKPI.query.filter_by(
+        company_id=company.id,
+        user_id=target_user_id
+    ).order_by(UserKPI.module, UserKPI.kpi_name).all()
+    
+    # Group by module
+    kpi_data = {}
+    for kpi in kpis:
+        if kpi.module not in kpi_data:
+            kpi_data[kpi.module] = []
+        
+        kpi_data[kpi.module].append({
+            'id': kpi.id,
+            'kpi_name': kpi.kpi_name,
+            'kpi_description': kpi.kpi_description,
+            'target_value': kpi.target_value,
+            'current_value': kpi.current_value,
+            'unit': kpi.unit,
+            'period': kpi.period,
+            'achievement_percentage': kpi.achievement_percentage,
+            'status': kpi.status,
+            'last_updated': kpi.last_updated.isoformat()
+        })
+    
+    return jsonify({
+        'user_id': target_user_id,
+        'kpis_by_module': kpi_data,
+        'total_kpis': len(kpis)
+    }), 200
+
+# ============================================================================
+# VIGILANCE MODULE ROUTES
+# ============================================================================
+
+@app.route('/api/vigilance/alerts', methods=['GET'])
+@jwt_required()
+@company_required
+def vigilance_alerts():
+    """System-wide vigilance and monitoring alerts"""
+    company = get_current_company()
+    current_user = get_current_user()
+    
+    # Get pagination parameters
+    page = safe_int(request.args.get('page', 1), 1)
+    per_page = safe_int(request.args.get('per_page', 20), 20)
+    
+    # Build query with optional filters
+    query = VigilanceAlert.query.filter_by(company_id=company.id)
+    
+    # Add filters
+    if request.args.get('alert_type'):
+        query = query.filter(VigilanceAlert.alert_type == request.args.get('alert_type'))
+    if request.args.get('severity'):
+        query = query.filter(VigilanceAlert.severity == request.args.get('severity'))
+    if request.args.get('status'):
+        query = query.filter(VigilanceAlert.status == request.args.get('status'))
+    if request.args.get('module'):
+        query = query.filter(VigilanceAlert.module == request.args.get('module'))
+    
+    # Order by creation date (newest first)
+    query = query.order_by(VigilanceAlert.created_at.desc())
+    
+    # Apply pagination
+    result = paginate_query(query, page, per_page)
+    alerts = result['items']
+    
+    return jsonify({
+        'alerts': [{
+            'id': a.id,
+            'alert_type': a.alert_type,
+            'severity': a.severity,
+            'module': a.module,
+            'title': a.title,
+            'description': a.description,
+            'affected_entity_type': a.affected_entity_type,
+            'affected_entity_id': a.affected_entity_id,
+            'threshold_value': a.threshold_value,
+            'actual_value': a.actual_value,
+            'status': a.status,
+            'assignee': {
+                'id': a.assignee.id,
+                'name': f"{a.assignee.first_name} {a.assignee.last_name}"
+            } if a.assignee else None,
+            'acknowledged_by': {
+                'id': a.acknowledger.id,
+                'name': f"{a.acknowledger.first_name} {a.acknowledger.last_name}"
+            } if a.acknowledger else None,
+            'acknowledged_at': a.acknowledged_at.isoformat() if a.acknowledged_at else None,
+            'resolved_by': {
+                'id': a.resolver.id,
+                'name': f"{a.resolver.first_name} {a.resolver.last_name}"
+            } if a.resolver else None,
+            'resolved_at': a.resolved_at.isoformat() if a.resolved_at else None,
+            'auto_generated': a.auto_generated,
+            'created_at': a.created_at.isoformat()
+        } for a in alerts],
+        'pagination': result['pagination']
+    }), 200
+
+@app.route('/api/vigilance/alerts/<int:alert_id>/acknowledge', methods=['POST'])
+@jwt_required()
+@company_required
+def acknowledge_alert(alert_id):
+    """Acknowledge a vigilance alert"""
+    company = get_current_company()
+    current_user = get_current_user()
+    
+    alert = VigilanceAlert.query.filter_by(id=alert_id, company_id=company.id).first()
+    if not alert:
+        return jsonify({'error': 'Alert not found'}), 404
+    
+    alert.acknowledged_by = current_user.id
+    alert.acknowledged_at = datetime.utcnow()
+    alert.status = 'acknowledged'
+    
+    db.session.commit()
+    
+    return jsonify({'message': 'Alert acknowledged successfully'}), 200
+
+# ============================================================================
+# SEARCH MODULE ROUTES
+# ============================================================================
+
+@app.route('/api/search', methods=['GET'])
+@jwt_required()
+@company_required
+def global_search():
+    """Global search across all major modules"""
+    company = get_current_company()
+    query = request.args.get('q', '').strip()
+    
+    if not query or len(query) < 2:
+        return jsonify({'error': 'Search query must be at least 2 characters'}), 400
+    
+    search_term = f"%{query}%"
+    results = {}
+    
+    try:
+        # Search customers
+        customers = Customer.query.filter(
+            Customer.company_id == company.id,
+            db.or_(
+                Customer.name.ilike(search_term),
+                Customer.email.ilike(search_term),
+                Customer.code.ilike(search_term)
+            )
+        ).limit(5).all()
+        
+        results['customers'] = [{
+            'id': c.id,
+            'name': c.name,
+            'type': 'customer',
+            'email': c.email,
+            'url': f'/ui/crm/customers/{c.id}'
+        } for c in customers]
+        
+        # Search deals
+        deals = Deal.query.filter(
+            Deal.company_id == company.id,
+            Deal.name.ilike(search_term)
+        ).limit(5).all()
+        
+        results['deals'] = [{
+            'id': d.id,
+            'name': d.name,
+            'type': 'deal',
+            'amount': float(d.amount),
+            'stage': d.stage,
+            'url': f'/ui/crm/deals/{d.id}'
+        } for d in deals]
+        
+        # Search tickets
+        tickets = Ticket.query.filter(
+            Ticket.company_id == company.id,
+            db.or_(
+                Ticket.subject.ilike(search_term),
+                Ticket.ticket_number.ilike(search_term)
+            )
+        ).limit(5).all()
+        
+        results['tickets'] = [{
+            'id': t.id,
+            'name': f"{t.ticket_number}: {t.subject}",
+            'type': 'ticket',
+            'status': t.status,
+            'priority': t.priority,
+            'url': f'/ui/desk/tickets/{t.id}'
+        } for t in tickets]
+        
+        # Search vendors
+        vendors = Vendor.query.filter(
+            Vendor.company_id == company.id,
+            db.or_(
+                Vendor.name.ilike(search_term),
+                Vendor.email.ilike(search_term),
+                Vendor.code.ilike(search_term)
+            )
+        ).limit(5).all()
+        
+        results['vendors'] = [{
+            'id': v.id,
+            'name': v.name,
+            'type': 'vendor',
+            'vendor_type': v.vendor_type,
+            'status': v.status,
+            'url': f'/ui/vendors/{v.id}'
+        } for v in vendors]
+        
+        # Search invoices
+        invoices = Invoice.query.filter(
+            Invoice.company_id == company.id,
+            Invoice.invoice_number.ilike(search_term)
+        ).limit(5).all()
+        
+        results['invoices'] = [{
+            'id': i.id,
+            'name': f"Invoice {i.invoice_number}",
+            'type': 'invoice',
+            'amount': float(i.total_amount),
+            'status': i.status,
+            'url': f'/ui/finance/invoices/{i.id}'
+        } for i in invoices]
+        
+        # Count total results
+        total_results = sum(len(results[key]) for key in results)
+        
+        return jsonify({
+            'query': query,
+            'total_results': total_results,
+            'results': results
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Search error: {str(e)}")
+        return jsonify({'error': 'Search failed'}), 500
+
+# ============================================================================
+# UI ROUTES - FRONTEND SERVING
+# ============================================================================
+
+@app.route('/ui')
+@app.route('/ui/')
+@app.route('/ui/<path:path>')
+def ui_app(path=None):
+    """Serve the main UI application"""
+    return render_template('ui/index.html')
+
+# ============================================================================
+# PWA ROUTES
+# ============================================================================
+
+@app.route('/manifest.json')
+def manifest():
+    """PWA manifest file"""
+    manifest_data = {
+        "name": "Complete ERP System",
+        "short_name": "ERP",
+        "description": "Complete Enterprise Resource Planning System with 14 integrated modules",
+        "start_url": "/ui/",
+        "display": "standalone",
+        "background_color": "#ffffff",
+        "theme_color": "#3b82f6",
+        "orientation": "portrait-primary",
+        "icons": [
+            {
+                "src": "/static/icons/icon-192x192.png",
+                "sizes": "192x192",
+                "type": "image/png"
+            },
+            {
+                "src": "/static/icons/icon-512x512.png", 
+                "sizes": "512x512",
+                "type": "image/png"
+            }
+        ],
+        "categories": ["business", "productivity"],
+        "shortcuts": [
+            {
+                "name": "CRM",
+                "short_name": "CRM",
+                "description": "Customer Relationship Management",
+                "url": "/ui/crm",
+                "icons": [{"src": "/static/icons/crm-96x96.png", "sizes": "96x96"}]
+            },
+            {
+                "name": "Finance",
+                "short_name": "Finance", 
+                "description": "Financial Management",
+                "url": "/ui/finance",
+                "icons": [{"src": "/static/icons/finance-96x96.png", "sizes": "96x96"}]
+            }
+        ]
+    }
+    
+    response = jsonify(manifest_data)
+    response.headers['Content-Type'] = 'application/manifest+json'
+    return response
+
+@app.route('/sw.js')
+def service_worker():
+    """Service worker for PWA offline capabilities"""
+    sw_content = '''
+const CACHE_NAME = 'erp-v1';
+const urlsToCache = [
+  '/ui/',
+  '/static/css/ui.css',
+  '/static/js/ui.js',
+  '/static/icons/icon-192x192.png'
+];
+
+self.addEventListener('install', function(event) {
+  event.waitUntil(
+    caches.open(CACHE_NAME)
+      .then(function(cache) {
+        return cache.addAll(urlsToCache);
+      })
+  );
+});
+
+self.addEventListener('fetch', function(event) {
+  event.respondWith(
+    caches.match(event.request)
+      .then(function(response) {
+        if (response) {
+          return response;
+        }
+        return fetch(event.request);
+      }
+    )
+  );
+});
+'''
+    
+    response = app.response_class(
+        response=sw_content,
+        status=200,
+        mimetype='application/javascript'
+    )
+    return response
+
+# ============================================================================
+# APPLICATION ENTRY POINT
+# ============================================================================
+
+if __name__ == '__main__':
+    # Initialize database tables and default data on startup
+    with app.app_context():
+        try:
+            db.create_all()
+            print("Database tables created/verified successfully")
+            
+            # Initialize default data
+            from init_db import init_database
+            company, admin_user = init_database()
+            if company and admin_user:
+                print(f"Default company and admin user verified: {company.name}")
+            
+        except Exception as e:
+            print(f"Database initialization warning: {str(e)}")
+    
+    # Run the application
+    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)), debug=True)
 
