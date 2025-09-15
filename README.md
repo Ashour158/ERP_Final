@@ -72,33 +72,65 @@ This is the most comprehensive ERP system ever built, featuring **14 fully integ
 
 ## 🔧 Development & CI/CD Setup
 
-### **Python CI Pipeline**
-This project uses GitHub Actions with a Python CI pipeline that tests on Python 3.11 and 3.12:
-- **Linting**: black, isort, flake8, bandit for code quality
-- **Testing**: pytest with coverage reporting
-- **Matrix Testing**: Ensures compatibility across Python 3.11 and 3.12
+### **CI/CD Workflows**
 
-### **Container Registry (GHCR)**
-Docker images are automatically built and published to GitHub Container Registry:
-- **Default Registry**: `ghcr.io/ashour158/erp_final` 
-- **Authentication**: Uses `GITHUB_TOKEN` by default
-- **Optional Secrets**:
-  - `CR_PAT`: Custom GitHub Personal Access Token (fallback)
-  - `IMAGE_NAME`: Custom image name (overrides default)
+This project implements production-grade CI/CD with automated testing, building, and deployment:
+
+#### **Backend CI** (`backend-ci.yml`)
+- **Triggers**: Pull requests to main, push to main, manual dispatch
+- **Matrix Testing**: Python 3.10 and 3.11 on ubuntu-latest
+- **Steps**: 
+  - Install dependencies from requirements.txt
+  - Run pytest with coverage reporting
+  - Build Docker image for health validation
+  - Upload test artifacts (junit.xml, coverage.xml)
+
+#### **Frontend CI** (`frontend-ci.yml`)
+- **Triggers**: Changes to frontend/** directory, manual dispatch
+- **Fail-Safe**: Gracefully handles missing frontend directory
+- **Node.js**: Version 20.x with npm caching
+- **Steps**:
+  - Check for frontend directory existence
+  - Install dependencies (npm ci/install)
+  - Run linting (if lint script exists)
+  - Build frontend (if build script exists)
+
+#### **Docker Release** (`docker-release.yml`)
+- **Triggers**: Push tags matching `v*` (e.g., v2.0.0)
+- **Registry**: GitHub Container Registry (GHCR)
+- **Images**: 
+  - `ghcr.io/ashour158/erp-final:latest`
+  - `ghcr.io/ashour158/erp-final:${{ github.ref_name }}`
+- **Authentication**: Uses `GITHUB_TOKEN` for GHCR
+
+### **Automated Dependency Updates**
+- **Dependabot**: Weekly updates for pip (requirements.txt) and npm (frontend/package.json)
+- **Grouping**: Minor and patch updates are grouped together
+- **Review**: Automatic assignment to repository maintainers
+
+### **Creating Releases**
+
+To create a new release:
+
+1. **Tag a release**: 
+   ```bash
+   git tag v1.0.0
+   git push origin v1.0.0
+   ```
+
+2. **Docker images** will be automatically built and pushed to GHCR
+
+3. **Available tags**:
+   - `latest` - Latest release
+   - `v1.0.0` - Specific version tag
 
 ### **Branch Protection Setup**
 To enable branch protection for the main branch, configure these required status checks:
-- **Python CI** - Ensures code quality and tests pass
+- **Backend CI** - Ensures code quality and tests pass
 - **CodeQL** - Security scanning and vulnerability detection  
-- **Docker** - Container build and registry push validation
+- **Docker Release** - Container build and registry push validation
 
 *Note: Branch protection requires repository admin access and must be configured manually in GitHub settings.*
-
-### **Release Automation**
-This repository uses release-please for automated version management:
-- **Automatic Versioning**: Based on conventional commits
-- **Release Notes**: Auto-generated from commit messages
-- **Required Permissions**: Actions must have "Read and write permissions" and "Allow GitHub Actions to create and approve pull requests" enabled in repository settings
 
 ---
 

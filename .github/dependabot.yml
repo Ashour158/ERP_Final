@@ -27,3 +27,19 @@ updates:
         update-types:
           - "minor"
           - "patch"
+
+  # NPM updates for frontend (if frontend directory exists)
+  - package-ecosystem: "npm"
+    directory: "/frontend"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 10
+    reviewers:
+      - "Ashour158"
+    groups:
+      minor-and-patch:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
