@@ -1,0 +1,601 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Complete ERP System - Production Ready</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+</head>
+<body class="bg-gray-50 font-inter">
+    <div id="app">
+        <!-- Loading Screen -->
+        <div id="loading-screen" class="fixed inset-0 bg-white z-50 flex items-center justify-center">
+            <div class="text-center">
+                <div class="animate-spin rounded-full h-16 w-16 border-b-2 border-indigo-600 mx-auto"></div>
+                <h2 class="text-xl font-semibold text-gray-900 mt-4">Loading ERP System...</h2>
+                <p class="text-gray-600 mt-2">Initializing all modules</p>
+            </div>
+        </div>
+
+        <!-- Login Screen -->
+        <div id="login-screen" class="min-h-screen bg-gradient-to-br from-indigo-600 via-purple-600 to-indigo-800 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8" style="display: none;">
+            <div class="max-w-md w-full space-y-8">
+                <div class="text-center">
+                    <h1 class="text-4xl font-bold text-white mb-2">Complete ERP System</h1>
+                    <p class="text-indigo-200 text-lg">Production-Ready Enterprise Solution</p>
+                </div>
+                <div class="bg-white rounded-lg shadow-xl p-8">
+                    <form id="login-form" class="space-y-6">
+                        <div class="space-y-4">
+                            <div>
+                                <label for="username" class="block text-sm font-medium text-gray-700">Username</label>
+                                <input id="username" name="username" type="text" required 
+                                       class="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm" 
+                                       placeholder="Enter your username" value="admin">
+                            </div>
+                            <div>
+                                <label for="password" class="block text-sm font-medium text-gray-700">Password</label>
+                                <input id="password" name="password" type="password" required 
+                                       class="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm" 
+                                       placeholder="Enter your password" value="admin123">
+                            </div>
+                        </div>
+                        <div id="login-error" class="text-red-600 text-sm hidden"></div>
+                        <button type="submit" id="login-btn" 
+                                class="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                            <span class="absolute left-0 inset-y-0 flex items-center pl-3">
+                                🔒
+                            </span>
+                            Sign In
+                        </button>
+                        <div class="text-center">
+                            <p class="text-sm text-gray-600">Demo Credentials:</p>
+                            <p class="text-xs text-gray-500">Username: admin | Password: admin123</p>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Application -->
+        <div id="main-app" class="min-h-screen bg-gray-50" style="display: none;">
+            <!-- Top Navigation -->
+            <nav class="bg-white shadow-sm border-b border-gray-200">
+                <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                    <div class="flex justify-between h-16">
+                        <div class="flex items-center">
+                            <h1 class="text-xl font-semibold text-gray-900">Complete ERP System</h1>
+                            <span class="ml-2 px-2 py-1 text-xs bg-green-100 text-green-800 rounded-full">Live</span>
+                        </div>
+                        <div class="flex items-center space-x-4">
+                            <!-- User Profile -->
+                            <div class="flex items-center space-x-3">
+                                <img id="user-avatar" class="h-8 w-8 rounded-full" src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzIiIGhlaWdodD0iMzIiIHZpZXdCb3g9IjAgMCAzMiAzMiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPGNpcmNsZSBjeD0iMTYiIGN5PSIxNiIgcj0iMTYiIGZpbGw9IiM0RjQ2RTUiLz4KPHN2ZyB4PSI4IiB5PSI4IiB3aWR0aD0iMTYiIGhlaWdodD0iMTYiIHZpZXdCb3g9IjAgMCAxNiAxNiIgZmlsbD0ibm9uZSI+CjxwYXRoIGQ9Ik04IDhDMTAuMjA5MSA4IDEyIDYuMjA5MSAxMiA0QzEyIDEuNzkwOSAxMC4yMDkxIDAgOCAwQzUuNzkwOSAwIDQgMS43OTA5IDQgNEM0IDYuMjA5MSA1Ljc5MDkgOCA4IDhaIiBmaWxsPSJ3aGl0ZSIvPgo8cGF0aCBkPSJNOCAxMEMzLjU4MTcyIDEwIDAgMTMuNTgxNyAwIDE4SDE2QzE2IDEzLjU4MTcgMTIuNDE4MyAxMCA4IDEwWiIgZmlsbD0id2hpdGUiLz4KPHN2Zz4KPHN2Zz4=" alt="User avatar">
+                                <div class="hidden md:block">
+                                    <div class="text-sm font-medium text-gray-900" id="user-name">Demo User</div>
+                                    <div class="text-xs text-gray-500" id="user-role">Admin</div>
+                                </div>
+                            </div>
+                            <!-- Logout Button -->
+                            <button onclick="logout()" class="text-gray-500 hover:text-gray-700">
+                                🚪
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </nav>
+
+            <div class="flex">
+                <!-- Sidebar Navigation -->
+                <div class="w-64 bg-white shadow-sm h-screen sticky top-0">
+                    <div class="flex flex-col h-full">
+                        <div class="flex-1 flex flex-col pt-5 pb-4 overflow-y-auto">
+                            <nav class="mt-5 flex-1 px-2 space-y-1">
+                                <!-- Dashboard -->
+                                <a href="#" onclick="switchModule('dashboard')" 
+                                   class="module-nav text-gray-900 hover:text-gray-900 hover:bg-gray-50 group flex items-center px-2 py-2 text-sm font-medium rounded-md">
+                                    📊 Dashboard
+                                </a>
+                                
+                                <!-- CRM Module -->
+                                <a href="#" onclick="switchModule('crm')" 
+                                   class="module-nav text-gray-600 hover:text-gray-900 hover:bg-gray-50 group flex items-center px-2 py-2 text-sm font-medium rounded-md">
+                                    👥 CRM
+                                </a>
+                                
+                                <!-- Finance Module -->
+                                <a href="#" onclick="switchModule('finance')" 
+                                   class="module-nav text-gray-600 hover:text-gray-900 hover:bg-gray-50 group flex items-center px-2 py-2 text-sm font-medium rounded-md">
+                                    💰 Finance
+                                </a>
+                                
+                                <!-- HR Module -->
+                                <a href="#" onclick="switchModule('hr')" 
+                                   class="module-nav text-gray-600 hover:text-gray-900 hover:bg-gray-50 group flex items-center px-2 py-2 text-sm font-medium rounded-md">
+                                    👔 HR & People
+                                </a>
+                                
+                                <!-- Supply Chain Module -->
+                                <a href="#" onclick="switchModule('supply-chain')" 
+                                   class="module-nav text-gray-600 hover:text-gray-900 hover:bg-gray-50 group flex items-center px-2 py-2 text-sm font-medium rounded-md">
+                                    🚚 Supply Chain
+                                </a>
+                                
+                                <!-- Desk Module -->
+                                <a href="#" onclick="switchModule('desk')" 
+                                   class="module-nav text-gray-600 hover:text-gray-900 hover:bg-gray-50 group flex items-center px-2 py-2 text-sm font-medium rounded-md">
+                                    🎧 Desk & Support
+                                </a>
+                            </nav>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Main Content Area -->
+                <div class="flex-1 overflow-hidden">
+                    <main class="flex-1 relative z-0 overflow-y-auto focus:outline-none h-screen">
+                        <div class="py-6">
+                            <div class="max-w-7xl mx-auto px-4 sm:px-6 md:px-8">
+                                
+                                <!-- Dashboard Module -->
+                                <div id="dashboard-module" class="module-content">
+                                    <div class="mb-6">
+                                        <h1 class="text-2xl font-semibold text-gray-900">Dashboard</h1>
+                                        <p class="mt-1 text-sm text-gray-600">Overview of your ERP system</p>
+                                    </div>
+                                    
+                                    <!-- KPI Cards -->
+                                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                                        <div class="bg-white overflow-hidden shadow rounded-lg">
+                                            <div class="p-5">
+                                                <div class="flex items-center">
+                                                    <div class="flex-shrink-0">
+                                                        👥
+                                                    </div>
+                                                    <div class="ml-5 w-0 flex-1">
+                                                        <dl>
+                                                            <dt class="text-sm font-medium text-gray-500 truncate">Total Customers</dt>
+                                                            <dd class="text-lg font-medium text-gray-900" id="total-customers">0</dd>
+                                                        </dl>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="bg-white overflow-hidden shadow rounded-lg">
+                                            <div class="p-5">
+                                                <div class="flex items-center">
+                                                    <div class="flex-shrink-0">
+                                                        💰
+                                                    </div>
+                                                    <div class="ml-5 w-0 flex-1">
+                                                        <dl>
+                                                            <dt class="text-sm font-medium text-gray-500 truncate">Revenue</dt>
+                                                            <dd class="text-lg font-medium text-gray-900" id="total-revenue">$0</dd>
+                                                        </dl>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="bg-white overflow-hidden shadow rounded-lg">
+                                            <div class="p-5">
+                                                <div class="flex items-center">
+                                                    <div class="flex-shrink-0">
+                                                        👔
+                                                    </div>
+                                                    <div class="ml-5 w-0 flex-1">
+                                                        <dl>
+                                                            <dt class="text-sm font-medium text-gray-500 truncate">Employees</dt>
+                                                            <dd class="text-lg font-medium text-gray-900" id="total-employees">0</dd>
+                                                        </dl>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="bg-white overflow-hidden shadow rounded-lg">
+                                            <div class="p-5">
+                                                <div class="flex items-center">
+                                                    <div class="flex-shrink-0">
+                                                        🎫
+                                                    </div>
+                                                    <div class="ml-5 w-0 flex-1">
+                                                        <dl>
+                                                            <dt class="text-sm font-medium text-gray-500 truncate">Open Tickets</dt>
+                                                            <dd class="text-lg font-medium text-gray-900" id="open-tickets">0</dd>
+                                                        </dl>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- CRM Module -->
+                                <div id="crm-module" class="module-content hidden">
+                                    <div class="mb-6">
+                                        <h1 class="text-2xl font-semibold text-gray-900">Customer Relationship Management</h1>
+                                        <p class="mt-1 text-sm text-gray-600">Manage customers, deals, and sales activities</p>
+                                    </div>
+                                    
+                                    <!-- CRM Tabs -->
+                                    <div class="border-b border-gray-200 mb-6">
+                                        <nav class="-mb-px flex space-x-8">
+                                            <button onclick="switchCRMTab('customers')" class="crm-tab active border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm">
+                                                Customers
+                                            </button>
+                                            <button onclick="switchCRMTab('deals')" class="crm-tab border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm">
+                                                Deals
+                                            </button>
+                                            <button onclick="switchCRMTab('quotes')" class="crm-tab border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm">
+                                                Quotes
+                                            </button>
+                                        </nav>
+                                    </div>
+                                    
+                                    <!-- Customers Tab -->
+                                    <div id="customers-tab" class="crm-tab-content">
+                                        <div class="bg-white shadow overflow-hidden sm:rounded-md">
+                                            <div class="px-4 py-5 sm:p-6">
+                                                <div class="flex justify-between items-center mb-4">
+                                                    <h3 class="text-lg leading-6 font-medium text-gray-900">Customers</h3>
+                                                    <button onclick="showAddCustomerModal()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md text-sm font-medium">
+                                                                                                                ➕ Add Customer
+                                                    </button>
+                                                </div>
+                                                <div id="customers-list" class="space-y-4">
+                                                    <!-- Customer list will be populated here -->
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Deals Tab -->
+                                    <div id="deals-tab" class="crm-tab-content hidden">
+                                        <div class="bg-white shadow overflow-hidden sm:rounded-md">
+                                            <div class="px-4 py-5 sm:p-6">
+                                                <div class="flex justify-between items-center mb-4">
+                                                    <h3 class="text-lg leading-6 font-medium text-gray-900">Deals</h3>
+                                                    <button onclick="showAddDealModal()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md text-sm font-medium">
+                                                        ➕ Add Deal
+                                                    </button>
+                                                </div>
+                                                <div id="deals-list" class="space-y-4">
+                                                    <!-- Deals list will be populated here -->
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Quotes Tab -->
+                                    <div id="quotes-tab" class="crm-tab-content hidden">
+                                        <div class="bg-white shadow overflow-hidden sm:rounded-md">
+                                            <div class="px-4 py-5 sm:p-6">
+                                                <div class="flex justify-between items-center mb-4">
+                                                    <h3 class="text-lg leading-6 font-medium text-gray-900">Quotes</h3>
+                                                    <button onclick="showAddQuoteModal()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md text-sm font-medium">
+                                                        ➕ Add Quote
+                                                    </button>
+                                                </div>
+                                                <div id="quotes-list" class="space-y-4">
+                                                    <!-- Quotes list will be populated here -->
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Finance Module -->
+                                <div id="finance-module" class="module-content hidden">
+                                    <div class="mb-6">
+                                        <h1 class="text-2xl font-semibold text-gray-900">Finance & Accounting</h1>
+                                        <p class="mt-1 text-sm text-gray-600">Manage invoices, payments, and financial operations</p>
+                                    </div>
+                                    
+                                    <!-- Finance Tabs -->
+                                    <div class="border-b border-gray-200 mb-6">
+                                        <nav class="-mb-px flex space-x-8">
+                                            <button onclick="switchFinanceTab('invoices')" class="finance-tab active border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm">
+                                                Invoices
+                                            </button>
+                                            <button onclick="switchFinanceTab('vendor-payments')" class="finance-tab border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm">
+                                                Vendor Payments
+                                            </button>
+                                        </nav>
+                                    </div>
+                                    
+                                    <!-- Invoices Tab -->
+                                    <div id="invoices-tab" class="finance-tab-content">
+                                        <div class="bg-white shadow overflow-hidden sm:rounded-md">
+                                            <div class="px-4 py-5 sm:p-6">
+                                                <div class="flex justify-between items-center mb-4">
+                                                    <h3 class="text-lg leading-6 font-medium text-gray-900">Invoices</h3>
+                                                    <button onclick="showAddInvoiceModal()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md text-sm font-medium">
+                                                        ➕ Create Invoice
+                                                    </button>
+                                                </div>
+                                                <div id="invoices-list" class="space-y-4">
+                                                    <!-- Invoices list will be populated here -->
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Vendor Payments Tab -->
+                                    <div id="vendor-payments-tab" class="finance-tab-content hidden">
+                                        <div class="bg-white shadow overflow-hidden sm:rounded-md">
+                                            <div class="px-4 py-5 sm:p-6">
+                                                <div class="flex justify-between items-center mb-4">
+                                                    <h3 class="text-lg leading-6 font-medium text-gray-900">Vendor Payments</h3>
+                                                    <button onclick="showAddVendorPaymentModal()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md text-sm font-medium">
+                                                        ➕ Add Payment
+                                                    </button>
+                                                </div>
+                                                <div id="vendor-payments-list" class="space-y-4">
+                                                    <!-- Vendor payments list will be populated here -->
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- HR Module -->
+                                <div id="hr-module" class="module-content hidden">
+                                    <div class="mb-6">
+                                        <h1 class="text-2xl font-semibold text-gray-900">Human Resources</h1>
+                                        <p class="mt-1 text-sm text-gray-600">Manage employees, attendance, and HR operations</p>
+                                    </div>
+                                    
+                                    <!-- HR Tabs -->
+                                    <div class="border-b border-gray-200 mb-6">
+                                        <nav class="-mb-px flex space-x-8">
+                                            <button onclick="switchHRTab('employees')" class="hr-tab active border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm">
+                                                Employees
+                                            </button>
+                                            <button onclick="switchHRTab('attendance')" class="hr-tab border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm">
+                                                Attendance
+                                            </button>
+                                            <button onclick="switchHRTab('leave-requests')" class="hr-tab border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm">
+                                                Leave Requests
+                                            </button>
+                                            <button onclick="switchHRTab('training')" class="hr-tab border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm">
+                                                Training
+                                            </button>
+                                            <button onclick="switchHRTab('payroll')" class="hr-tab border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm">
+                                                Payroll
+                                            </button>
+                                        </nav>
+                                    </div>
+                                    
+                                    <!-- Employees Tab -->
+                                    <div id="employees-tab" class="hr-tab-content">
+                                        <div class="bg-white shadow overflow-hidden sm:rounded-md">
+                                            <div class="px-4 py-5 sm:p-6">
+                                                <div class="flex justify-between items-center mb-4">
+                                                    <h3 class="text-lg leading-6 font-medium text-gray-900">Employees</h3>
+                                                    <button onclick="showAddEmployeeModal()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md text-sm font-medium">
+                                                        ➕ Add Employee
+                                                    </button>
+                                                </div>
+                                                <div id="employees-list" class="space-y-4">
+                                                    <!-- Employees list will be populated here -->
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Attendance Tab -->
+                                    <div id="attendance-tab" class="hr-tab-content hidden">
+                                        <div class="bg-white shadow overflow-hidden sm:rounded-md">
+                                            <div class="px-4 py-5 sm:p-6">
+                                                <div class="flex justify-between items-center mb-4">
+                                                    <h3 class="text-lg leading-6 font-medium text-gray-900">Attendance Management</h3>
+                                                    <div class="space-x-2">
+                                                        <button onclick="checkIn()" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md text-sm font-medium">
+                                                            ⬇️ Check In
+                                                        </button>
+                                                        <button onclick="checkOut()" class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md text-sm font-medium">
+                                                            ⬆️ Check Out
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                                <div id="attendance-list" class="space-y-4">
+                                                    <!-- Attendance records will be populated here -->
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Leave Requests Tab -->
+                                    <div id="leave-requests-tab" class="hr-tab-content hidden">
+                                        <div class="bg-white shadow overflow-hidden sm:rounded-md">
+                                            <div class="px-4 py-5 sm:p-6">
+                                                <div class="flex justify-between items-center mb-4">
+                                                    <h3 class="text-lg leading-6 font-medium text-gray-900">Leave Requests</h3>
+                                                    <button onclick="showAddLeaveRequestModal()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md text-sm font-medium">
+                                                        ➕ Request Leave
+                                                    </button>
+                                                </div>
+                                                <div id="leave-requests-list" class="space-y-4">
+                                                    <!-- Leave requests will be populated here -->
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Training Tab -->
+                                    <div id="training-tab" class="hr-tab-content hidden">
+                                        <div class="bg-white shadow overflow-hidden sm:rounded-md">
+                                            <div class="px-4 py-5 sm:p-6">
+                                                <div class="flex justify-between items-center mb-4">
+                                                    <h3 class="text-lg leading-6 font-medium text-gray-900">Training Programs</h3>
+                                                    <button onclick="showAddTrainingModal()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md text-sm font-medium">
+                                                        ➕ Add Program
+                                                    </button>
+                                                </div>
+                                                <div id="training-list" class="space-y-4">
+                                                    <!-- Training programs will be populated here -->
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Payroll Tab -->
+                                    <div id="payroll-tab" class="hr-tab-content hidden">
+                                        <div class="bg-white shadow overflow-hidden sm:rounded-md">
+                                            <div class="px-4 py-5 sm:p-6">
+                                                <div class="flex justify-between items-center mb-4">
+                                                    <h3 class="text-lg leading-6 font-medium text-gray-900">Payroll</h3>
+                                                    <button onclick="showAddPayrollModal()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md text-sm font-medium">
+                                                        ➕ Process Payroll
+                                                    </button>
+                                                </div>
+                                                <div id="payroll-list" class="space-y-4">
+                                                    <!-- Payroll records will be populated here -->
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Supply Chain Module -->
+                                <div id="supply-chain-module" class="module-content hidden">
+                                    <div class="mb-6">
+                                        <h1 class="text-2xl font-semibold text-gray-900">Supply Chain Management</h1>
+                                        <p class="mt-1 text-sm text-gray-600">Manage inventory, purchase orders, and shipments</p>
+                                    </div>
+                                    
+                                    <!-- Supply Chain Tabs -->
+                                    <div class="border-b border-gray-200 mb-6">
+                                        <nav class="-mb-px flex space-x-8">
+                                            <button onclick="switchSupplyChainTab('inventory')" class="supply-chain-tab active border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm">
+                                                Inventory
+                                            </button>
+                                            <button onclick="switchSupplyChainTab('purchase-orders')" class="supply-chain-tab border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm">
+                                                Purchase Orders
+                                            </button>
+                                            <button onclick="switchSupplyChainTab('shipments')" class="supply-chain-tab border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm">
+                                                Shipments
+                                            </button>
+                                        </nav>
+                                    </div>
+                                    
+                                    <!-- Inventory Tab -->
+                                    <div id="inventory-tab" class="supply-chain-tab-content">
+                                        <div class="bg-white shadow overflow-hidden sm:rounded-md">
+                                            <div class="px-4 py-5 sm:p-6">
+                                                <div class="flex justify-between items-center mb-4">
+                                                    <h3 class="text-lg leading-6 font-medium text-gray-900">Inventory</h3>
+                                                    <button onclick="showAddInventoryModal()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md text-sm font-medium">
+                                                        ➕ Add Item
+                                                    </button>
+                                                </div>
+                                                <div id="inventory-list" class="space-y-4">
+                                                    <!-- Inventory items will be populated here -->
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Purchase Orders Tab -->
+                                    <div id="purchase-orders-tab" class="supply-chain-tab-content hidden">
+                                        <div class="bg-white shadow overflow-hidden sm:rounded-md">
+                                            <div class="px-4 py-5 sm:p-6">
+                                                <div class="flex justify-between items-center mb-4">
+                                                    <h3 class="text-lg leading-6 font-medium text-gray-900">Purchase Orders</h3>
+                                                    <button onclick="showAddPurchaseOrderModal()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md text-sm font-medium">
+                                                        ➕ Create Order
+                                                    </button>
+                                                </div>
+                                                <div id="purchase-orders-list" class="space-y-4">
+                                                    <!-- Purchase orders will be populated here -->
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Shipments Tab -->
+                                    <div id="shipments-tab" class="supply-chain-tab-content hidden">
+                                        <div class="bg-white shadow overflow-hidden sm:rounded-md">
+                                            <div class="px-4 py-5 sm:p-6">
+                                                <div class="flex justify-between items-center mb-4">
+                                                    <h3 class="text-lg leading-6 font-medium text-gray-900">Courier Shipments</h3>
+                                                    <button onclick="showAddShipmentModal()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md text-sm font-medium">
+                                                        ➕ Create Shipment
+                                                    </button>
+                                                </div>
+                                                <div id="shipments-list" class="space-y-4">
+                                                    <!-- Shipments will be populated here -->
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Desk Module -->
+                                <div id="desk-module" class="module-content hidden">
+                                    <div class="mb-6">
+                                        <h1 class="text-2xl font-semibold text-gray-900">Desk & Support</h1>
+                                        <p class="mt-1 text-sm text-gray-600">Manage tickets and work orders</p>
+                                    </div>
+                                    
+                                    <!-- Desk Tabs -->
+                                    <div class="border-b border-gray-200 mb-6">
+                                        <nav class="-mb-px flex space-x-8">
+                                            <button onclick="switchDeskTab('tickets')" class="desk-tab active border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm">
+                                                Tickets
+                                            </button>
+                                            <button onclick="switchDeskTab('work-orders')" class="desk-tab border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm">
+                                                Work Orders
+                                            </button>
+                                        </nav>
+                                    </div>
+                                    
+                                    <!-- Tickets Tab -->
+                                    <div id="tickets-tab" class="desk-tab-content">
+                                        <div class="bg-white shadow overflow-hidden sm:rounded-md">
+                                            <div class="px-4 py-5 sm:p-6">
+                                                <div class="flex justify-between items-center mb-4">
+                                                    <h3 class="text-lg leading-6 font-medium text-gray-900">Support Tickets</h3>
+                                                    <button onclick="showAddTicketModal()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md text-sm font-medium">
+                                                        ➕ Create Ticket
+                                                    </button>
+                                                </div>
+                                                <div id="tickets-list" class="space-y-4">
+                                                    <!-- Tickets will be populated here -->
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Work Orders Tab -->
+                                    <div id="work-orders-tab" class="desk-tab-content hidden">
+                                        <div class="bg-white shadow overflow-hidden sm:rounded-md">
+                                            <div class="px-4 py-5 sm:p-6">
+                                                <div class="flex justify-between items-center mb-4">
+                                                    <h3 class="text-lg leading-6 font-medium text-gray-900">Work Orders</h3>
+                                                    <button onclick="showAddWorkOrderModal()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md text-sm font-medium">
+                                                        ➕ Create Work Order
+                                                    </button>
+                                                </div>
+                                                <div id="work-orders-list" class="space-y-4">
+                                                    <!-- Work orders will be populated here -->
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                            </div>
+                        </div>
+                    </main>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Load JavaScript -->
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>
