@@ -1,16 +1,16 @@
-name: Docker Build and Push
+name: Docker Release Build and Push
 
 on:
   push:
-    branches: [ main ]
-    tags: [ 'v*' ]
+    tags:
+      - 'v*'
 
 permissions:
   contents: read
   packages: write
 
 jobs:
-  docker:
+  docker-release:
     runs-on: ubuntu-latest
     steps:
     - name: Checkout
@@ -24,19 +24,17 @@ jobs:
       with:
         registry: ghcr.io
         username: ${{ github.actor }}
-        password: ${{ secrets.CR_PAT != '' && secrets.CR_PAT || secrets.GITHUB_TOKEN }}
+        password: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Extract metadata
       id: meta
       uses: docker/metadata-action@v5
       with:
-        images: ${{ secrets.IMAGE_NAME != '' && secrets.IMAGE_NAME || format('ghcr.io/{0}/erp_final', github.repository_owner) }}
+        images: ghcr.io/${{ github.repository_owner }}/erp-final
         tags: |
-          type=ref,event=branch
-          type=ref,event=pr
           type=ref,event=tag
-          type=sha,prefix={{branch}}-
-          type=raw,value=latest,enable={{is_default_branch}}
+          type=raw,value=latest
+          type=raw,value=${{ github.ref_name }}
 
     - name: Build and push Docker image
       uses: docker/build-push-action@v6
