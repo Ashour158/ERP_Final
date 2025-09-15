@@ -14,9 +14,11 @@ from datetime import datetime, timedelta
 import os
 import json
 import uuid
+import sys
 from functools import wraps
 import logging
 from config import config
+from sqlalchemy.engine.url import make_url
 
 # Load environment variables from .env file if it exists
 try:
@@ -29,6 +31,48 @@ except ImportError:
 except Exception as e:
     print(f"Warning: Could not load .env file: {e}")
 
+# ============================================================================
+# SECURITY HELPER FUNCTIONS
+# ============================================================================
+
+def is_valid_prod_db_url(uri):
+    """Validate if database URI is suitable for production"""
+    if not uri:
+        return False
+    
+    try:
+        parsed = make_url(uri)
+        # For production, require PostgreSQL
+        if not parsed.drivername.startswith('postgresql'):
+            return False
+        # Must have host, username, and password
+        if not parsed.host or not parsed.username or not parsed.password:
+            return False
+        # Database name should be specified
+        if not parsed.database:
+            return False
+        return True
+    except Exception:
+        return False
+
+def mask_db_uri(uri):
+    """Mask sensitive information in database URI for logging"""
+    if not uri:
+        return "Not set"
+    
+    try:
+        parsed = make_url(uri)
+        # Create masked version showing only scheme, host, and database
+        masked = f"{parsed.drivername}://***@{parsed.host or 'localhost'}"
+        if parsed.port:
+            masked += f":{parsed.port}"
+        if parsed.database:
+            masked += f"/{parsed.database}"
+        return masked
+    except Exception:
+        # If parsing fails, just show a generic masked version
+        return "***://***@***/***"
+
 # Initialize Flask app
 app = Flask(__name__)
 
@@ -37,8 +81,22 @@ env = os.environ.get('FLASK_ENV', 'development')
 config_class = config.get(env, config['default'])
 app.config.from_object(config_class)
 
+# Get database URI for validation and logging
+db_uri = app.config.get('SQLALCHEMY_DATABASE_URI', 'Not set')
+
 print(f"Loaded configuration for environment: {env}")
-print(f"Database URI: {app.config.get('SQLALCHEMY_DATABASE_URI', 'Not set')}")
+print(f"Database URI: {mask_db_uri(db_uri)}")
+
+# Production environment validation
+if env == 'production':
+    if not is_valid_prod_db_url(db_uri):
+        print("FATAL ERROR: Invalid or missing DATABASE_URL for production environment")
+        print("Production requires a valid PostgreSQL connection string with:")
+        print("- Host, username, password, and database name")
+        print("- Format: postgresql://username:password@host:port/database")
+        print("Please set DATABASE_URL environment variable and restart.")
+        sys.exit(1)
+    print("✓ Production database configuration validated")
 
 # Initialize extensions
 db = SQLAlchemy(app)
