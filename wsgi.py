@@ -16,13 +16,16 @@ with app.app_context():
         db.create_all()
         print("Database tables created successfully")
         
-        # Initialize database with Company and Admin user if needed
-        from init_db import init_database
-        company, admin_user = init_database()
-        
-        if company and admin_user:
-            print(f"Initialized with company: {company.name}")
-            print(f"Admin user: {admin_user.username}")
+        # Initialize database with Company and Admin user if available
+        try:
+            from init_db import init_database
+            company, admin_user = init_database()
+            if company:
+                print(f"Initialized with company: {getattr(company, 'name', 'N/A')}")
+            if admin_user:
+                print(f"Admin user: {getattr(admin_user, 'username', 'N/A')}")
+        except Exception as init_err:
+            print(f"Database initialization warning: {str(init_err)}")
         
     except Exception as e:
         print(f"Database initialization warning: {str(e)}")

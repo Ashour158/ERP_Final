@@ -44,8 +44,8 @@ print(f"Database URI: {app.config.get('SQLALCHEMY_DATABASE_URI', 'Not set')}")
 db = SQLAlchemy(app)
 jwt = JWTManager(app)
 
-# Initialize CORS with origins from config
-cors_origins = getattr(app.config, 'CORS_ORIGINS', ["*"])
+# Initialize CORS with origins from config (use dict access to respect config values)
+cors_origins = app.config.get('CORS_ORIGINS', ["*"])
 CORS(app, origins=cors_origins)
 print(f"CORS origins: {cors_origins}")
 
